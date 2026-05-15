@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280" />
+<title>EndoScan AI · Detección de H. pylori</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--blue-900:#0B2A6B;--blue-700:#1E40AF;--blue-600:#2347C5;--blue-100:#E6ECFA;--blue-50:#F1F5FE;--red-600:#DC2626;--red-50:#FEF2F2;--red-100:#FEE2E2;--green-600:#16A34A;--green-50:#F0FDF4;--green-100:#DCFCE7;--amber-600:#D97706;--amber-50:#FFFBEB;--ink-900:#0F172A;--ink-700:#334155;--ink-500:#64748B;--ink-400:#94A3B8;--ink-300:#CBD5E1;--ink-200:#E2E8F0;--ink-100:#EEF2F6;--ink-50:#F7F9FC;--white:#FFFFFF}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink-900);background:var(--ink-50);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;min-width:1280px}
+button{font-family:inherit;cursor:pointer}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-feature-settings:"tnum" 1}
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+.sidebar{background:var(--white);border-right:1px solid var(--ink-200);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{padding:20px 20px 16px;border-bottom:1px solid var(--ink-100);display:flex;align-items:center;gap:10px}
+.brand-mark{width:32px;height:32px;border-radius:7px;background:var(--blue-700);display:grid;place-items:center;color:#fff;font-weight:700;font-family:"IBM Plex Mono",monospace;font-size:13px;position:relative}
+.brand-mark::after{content:"";position:absolute;inset:4px;border:1.5px solid rgba(255,255,255,.45);border-radius:4px}
+.brand-name{font-weight:600;font-size:14px}
+.brand-sub{font-size:11px;color:var(--ink-500);font-family:"IBM Plex Mono",monospace;margin-top:1px}
+.nav{padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.nav-section{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-400);padding:14px 10px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:var(--ink-700);font-size:13.5px;font-weight:500;background:transparent;border:0;width:100%;text-align:left}
+.nav-item:hover{background:var(--ink-50)}
+.nav-item.active{background:var(--blue-50);color:var(--blue-700)}
+.nav-icon{width:16px;height:16px;flex-shrink:0;color:var(--ink-500)}
+.nav-item.active .nav-icon{color:var(--blue-700)}
+.nav-badge{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:2px 6px;border-radius:4px;background:var(--ink-100);color:var(--ink-700)}
+.sidebar-footer{margin-top:auto;padding:14px 16px;border-top:1px solid var(--ink-100);display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1E40AF,#4F6FE8);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+.user-name{font-size:13px;font-weight:600}.user-role{font-size:11px;color:var(--ink-500)}
+.main{display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--ink-200);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:5}
+.crumbs{font-size:12.5px;color:var(--ink-500);display:flex;align-items:center;gap:6px}
+.crumbs strong{color:var(--ink-900);font-weight:600}
+.topbar-spacer{flex:1}
+.system-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-700);padding:6px 10px;border:1px solid var(--ink-200);border-radius:999px;background:var(--white)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green-600);box-shadow:0 0 0 3px rgba(22,163,74,.15)}
+.model-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--blue-50);color:var(--blue-700);border:1px solid var(--blue-100);font-size:12px;font-weight:600}
+.model-pill .mono{font-size:11px;color:var(--blue-900)}
+.content{padding:28px 32px 24px;flex:1}
+.page-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;gap:16px}
+.page-title{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
+.page-sub{color:var(--ink-500);font-size:13.5px;margin-top:4px}
+.disclaimer{border-top:1px solid var(--ink-200);background:var(--amber-50);padding:10px 32px;font-size:12px;color:#78350F;display:flex;align-items:center;gap:10px}
+.card{background:var(--white);border:1px solid var(--ink-200);border-radius:12px}
+.card-pad{padding:20px}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--ink-100);gap:12px}
+.card-title{font-size:14px;font-weight:600;margin:0}
+.card-sub{font-size:12px;color:var(--ink-500);margin-top:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid transparent;transition:all 120ms ease}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--blue-700);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--blue-600)}
+.btn-secondary{background:var(--white);color:var(--ink-700);border-color:var(--ink-300)}
+.btn-secondary:hover:not(:disabled){background:var(--ink-50)}
+.btn-ghost{background:transparent;color:var(--ink-700)}
+.btn-ghost:hover:not(:disabled){background:var(--ink-100)}
+.btn-icon{width:32px;height:32px;padding:0}
+.input,.select{border:1px solid var(--ink-300);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--white);font-family:inherit;outline:none}
+.input:focus,.select:focus{border-color:var(--blue-700);box-shadow:0 0 0 3px var(--blue-100)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;font-family:"IBM Plex Mono",monospace}
+.badge-pos{background:var(--red-50);color:var(--red-600);border:1px solid var(--red-100)}
+.badge-neg{background:var(--green-50);color:var(--green-600);border:1px solid var(--green-100)}
+.badge-neutral{background:var(--ink-100);color:var(--ink-700)}
+.badge-info{background:var(--blue-50);color:var(--blue-700);border:1px solid var(--blue-100)}
+.badge-warn{background:var(--amber-50);color:var(--amber-600);border:1px solid #FDE68A}
+.dropzone{border:2px dashed var(--ink-300);border-radius:12px;padding:48px 24px;background:var(--ink-50);text-align:center;transition:all 150ms ease;min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.dropzone:hover,.dropzone.active{border-color:var(--blue-700);background:var(--blue-50)}
+.dropzone.active{border-style:solid}
+.dropzone-icon{width:48px;height:48px;border-radius:12px;background:var(--white);border:1px solid var(--ink-200);color:var(--blue-700);display:grid;place-items:center;margin-bottom:16px}
+.dropzone-title{font-size:15px;font-weight:600;margin-bottom:4px}
+.dropzone-sub{font-size:13px;color:var(--ink-500);margin-bottom:16px}
+.preview-wrap{position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.preview-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.preview-chip{position:absolute;top:10px;left:10px;background:rgba(15,23,42,.78);color:#fff;padding:4px 8px;border-radius:4px;font-family:"IBM Plex Mono",monospace;font-size:10.5px}
+.result-empty{border:1px dashed var(--ink-300);border-radius:12px;padding:32px 20px;text-align:center;color:var(--ink-500);font-size:13px;min-height:280px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:var(--ink-50)}
+.verdict{border-radius:12px;padding:20px;display:flex;align-items:center;justify-content:space-between;border:1px solid}
+.verdict-pos{background:var(--red-50);border-color:var(--red-100)}
+.verdict-neg{background:var(--green-50);border-color:var(--green-100)}
+.verdict-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-700)}
+.verdict-value{font-size:22px;font-weight:700;margin-top:2px}
+.verdict-prob{font-family:"IBM Plex Mono",monospace;font-size:32px;font-weight:600}
+.metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--ink-200);border:1px solid var(--ink-200);border-radius:8px;overflow:hidden}
+.metric{background:var(--white);padding:14px 16px}
+.metric-label{font-size:11px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.metric-value{font-family:"IBM Plex Mono",monospace;font-size:18px;font-weight:600;margin-top:4px}
+.metric-value small{font-size:12px;font-weight:500;color:var(--ink-500);margin-left:2px}
+.confbar{height:6px;background:var(--ink-100);border-radius:999px;overflow:hidden;margin-top:10px}
+.confbar-fill{height:100%;border-radius:999px;transition:width 600ms cubic-bezier(.4,0,.2,1)}
+.spinner{width:36px;height:36px;border:3px solid var(--ink-200);border-top-color:var(--blue-700);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+.spinner-sm{width:12px;height:12px;border:2px solid var(--ink-200);border-top-color:var(--blue-700);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress{height:6px;background:var(--ink-100);border-radius:999px;overflow:hidden}
+.progress-fill{height:100%;background:var(--blue-700);border-radius:999px;transition:width .2s linear}
+.alert{border-radius:8px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;font-size:13px;border:1px solid}
+.alert-error{background:var(--red-50);border-color:var(--red-100);color:#7F1D1D}
+.alert-warn{background:var(--amber-50);border-color:#FDE68A;color:#78350F}
+.alert-info{background:var(--blue-50);border-color:var(--blue-100);color:var(--blue-900)}
+.heatmap-stage{position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.heatmap-stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.heatmap-stage .heat{mix-blend-mode:screen}
+.legend{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border:1px solid var(--ink-200);border-radius:8px}
+.legend-bar{height:8px;flex:1;border-radius:999px;background:linear-gradient(90deg,#2347C5 0%,#16A34A 30%,#FBBF24 60%,#DC2626 100%)}
+.legend-label{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-500)}
+.slider{width:100%;-webkit-appearance:none;appearance:none;height:4px;background:var(--ink-200);border-radius:999px;outline:none}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;background:var(--blue-700);border-radius:50%;cursor:pointer;border:2px solid var(--white);box-shadow:0 0 0 1px var(--blue-700)}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table thead th{text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);padding:10px 14px;border-bottom:1px solid var(--ink-200);background:var(--ink-50)}
+.table tbody td{padding:10px 14px;border-bottom:1px solid var(--ink-100);vertical-align:middle}
+.table tbody tr:hover{background:var(--ink-50)}
+.thumb{width:36px;height:36px;border-radius:4px;object-fit:cover;display:block;background:var(--ink-100)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.kpi{background:var(--white);border:1px solid var(--ink-200);border-radius:12px;padding:18px}
+.kpi-label{font-size:11.5px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.kpi-value{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;margin-top:6px}
+.kpi-delta{font-size:11.5px;font-family:"IBM Plex Mono",monospace;margin-top:4px;color:var(--ink-500)}
+.kpi-delta.up{color:var(--green-600)}.kpi-delta.down{color:var(--red-600)}
+.row{display:flex;align-items:center;gap:12px}.between{justify-content:space-between}
+.muted{color:var(--ink-500)}
+.section-title{font-size:12px;font-weight:600;color:var(--ink-500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.linklike{color:var(--blue-700);cursor:pointer;font-weight:500;text-decoration:underline}
+.model-card{background:var(--white);border:1px solid var(--ink-200);border-radius:10px;padding:16px;cursor:pointer;transition:all .15s ease;text-align:left;width:100%}
+.model-card:hover{border-color:var(--blue-700)}
+.model-card.selected{border-color:var(--blue-700);box-shadow:0 0 0 3px var(--blue-100);background:var(--blue-50)}
+.model-card .name{font-weight:600;font-size:14px}
+.model-card .arch{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-500);margin-top:2px}
+.model-card .meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.model-card .chip{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--ink-100);color:var(--ink-700);font-family:"IBM Plex Mono",monospace}
+.model-card .chip.best{background:var(--green-100);color:var(--green-600)}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12.5px}
+.bar-row .label{width:140px;color:var(--ink-700)}
+.bar-row .track{flex:1;height:8px;background:var(--ink-100);border-radius:999px;overflow:hidden}
+.bar-row .fill{height:100%;border-radius:999px;background:var(--blue-700)}
+.bar-row .val{width:64px;text-align:right;font-family:"IBM Plex Mono",monospace;font-size:12px}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.addEventListener("dragover",function(e){if(!e.target.closest||!e.target.closest("[data-dropzone]")){e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="none"}},false);
+window.addEventListener("drop",function(e){if(!e.target.closest||!e.target.closest("[data-dropzone]")){e.preventDefault()}},false);
+</script>
+<script type="text/babel">
+const { useState, useRef } = React;
+const h = React.createElement;
+
+// ===== Models catalog =====
+const MODELS = [
+  { id: "resnet50", name: "ResNet50-Hp", version: "v0.4.2", arch: "CNN · 25.6M params", recommended: true,
+    metrics: { accuracy: 0.924, sensitivity: 0.918, specificity: 0.929, auc: 0.961, f1: 0.921, latency_ms: 1420, model_mb: 98 },
+    desc: "Modelo de referencia. Mejor balance precisión/latencia. Entrenado con 12 480 imágenes endoscópicas etiquetadas." },
+  { id: "efficientnetb3", name: "EfficientNet-B3", version: "v0.3.1", arch: "CNN · 12.0M params",
+    metrics: { accuracy: 0.911, sensitivity: 0.901, specificity: 0.918, auc: 0.948, f1: 0.907, latency_ms: 980, model_mb: 47 },
+    desc: "Más liviano y rápido. Preferido para entornos con CPU limitada o procesamiento por lote masivo." },
+  { id: "vitb16", name: "ViT-B/16", version: "v0.2.0", arch: "Transformer · 86.6M params",
+    metrics: { accuracy: 0.937, sensitivity: 0.942, specificity: 0.933, auc: 0.972, f1: 0.939, latency_ms: 2180, model_mb: 327 },
+    desc: "Mayor precisión observada. No cumple objetivo de latencia <2 s en hardware estándar; uso recomendado para revisión a posteriori." },
+  { id: "densenet121", name: "DenseNet-121", version: "v0.3.0", arch: "CNN · 8.0M params",
+    metrics: { accuracy: 0.903, sensitivity: 0.892, specificity: 0.911, auc: 0.939, f1: 0.898, latency_ms: 1260, model_mb: 33 },
+    desc: "Compacto y robusto frente a artefactos de iluminación. Buena opción de respaldo." },
+];
+
+// ===== Sample images (synthetic placeholders, NOT real medical data) =====
+function makeEndo(id, tint, lesion) {
+  const speckles = Array.from({length: 36}).map((_, i) => {
+    const x = (i * 73) % 600, y = (i * 131) % 480, r = 4 + ((i * 7) % 18), o = 0.04 + ((i % 5) / 30);
+    return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(120,30,30,'+o+')"/>';
+  }).join("");
+  const lm = lesion ? '<ellipse cx="380" cy="220" rx="70" ry="46" fill="#7A1F2E" opacity="0.55"/><ellipse cx="385" cy="225" rx="38" ry="22" fill="#5C1622" opacity="0.7"/><circle cx="395" cy="215" r="6" fill="#3D0E18" opacity="0.85"/>' : "";
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480"><defs><radialGradient id="g'+id+'" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="'+tint+'"/><stop offset="60%" stop-color="#5A1820"/><stop offset="100%" stop-color="#1a0608"/></radialGradient><radialGradient id="v'+id+'" cx="50%" cy="50%" r="70%"><stop offset="60%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,0.85)"/></radialGradient></defs><rect width="600" height="480" fill="#000"/><circle cx="300" cy="240" r="240" fill="url(#g'+id+')"/>'+speckles+lm+'<circle cx="300" cy="240" r="240" fill="url(#v'+id+')"/><text x="14" y="466" fill="rgba(255,255,255,0.7)" font-family="monospace" font-size="11">CASE-'+id+'</text></svg>';
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+function makeHeat(id) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480"><defs><radialGradient id="h'+id+'" cx="63%" cy="46%" r="22%"><stop offset="0%" stop-color="rgba(220,38,38,0.95)"/><stop offset="35%" stop-color="rgba(251,191,36,0.7)"/><stop offset="65%" stop-color="rgba(22,163,74,0.45)"/><stop offset="100%" stop-color="rgba(35,71,197,0)"/></radialGradient></defs><rect width="600" height="480" fill="rgba(35,71,197,0.12)"/><rect width="600" height="480" fill="url(#h'+id+')"/></svg>';
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+const SAMPLES = {
+  pos1: { src: makeEndo("0917", "#9A2D40", true), heat: makeHeat("0917"), name: "case_0917.jpg", size: 2.4 },
+  pos2: { src: makeEndo("1042", "#A33446", true), heat: makeHeat("1042"), name: "case_1042.jpg", size: 3.1 },
+  neg1: { src: makeEndo("0863", "#B5495C", false), heat: makeHeat("0863"), name: "case_0863.jpg", size: 2.0 },
+  neg2: { src: makeEndo("0728", "#BB546A", false), heat: makeHeat("0728"), name: "case_0728.jpg", size: 1.8 },
+};
+
+async function mockPredict(file, opts) {
+  opts = opts || {};
+  const model = MODELS.find(m => m.id === (opts.modelId || "resnet50")) || MODELS[0];
+  const baseLat = model.metrics.latency_ms;
+  const ms = Math.round(baseLat * (0.85 + Math.random() * 0.3));
+  await new Promise(r => setTimeout(r, ms));
+  if (opts.forceError) throw new Error("API_TIMEOUT");
+  const positive = opts.positive != null ? opts.positive : (Math.random() > 0.55);
+  const baseProb = positive ? 0.74 + Math.random() * 0.22 : 0.06 + Math.random() * 0.22;
+  return {
+    clase: positive ? "Positivo" : "Negativo",
+    prob: Number(baseProb.toFixed(4)),
+    latencia_ms: ms,
+    heatmap_b64: opts.heat || null,
+    modelo: model.name + "_" + model.version,
+    modelId: model.id,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// ===== Inline icons =====
+const Ico = ({d, size=16, sw=1.75, kids}) => h("svg", {width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth:sw, strokeLinecap:"round", strokeLinejoin:"round"}, d ? h("path", {d}) : kids);
+const I = {
+  dash: (p) => h(Ico, {...p, kids: [h("rect",{key:1,x:3,y:3,width:7,height:9,rx:1.5}), h("rect",{key:2,x:14,y:3,width:7,height:5,rx:1.5}), h("rect",{key:3,x:14,y:12,width:7,height:9,rx:1.5}), h("rect",{key:4,x:3,y:16,width:7,height:5,rx:1.5})]}),
+  upload: (p) => h(Ico, {...p, d:"M12 16V4M7 9l5-5 5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"}),
+  layers: (p) => h(Ico, {...p, d:"M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"}),
+  heat: (p) => h(Ico, {...p, kids:[h("circle",{key:1,cx:12,cy:12,r:9}), h("circle",{key:2,cx:12,cy:12,r:5}), h("circle",{key:3,cx:12,cy:12,r:1.5,fill:"currentColor"})]}),
+  history: (p) => h(Ico, {...p, d:"M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"}),
+  cog: (p) => h(Ico, {...p, kids:[h("circle",{key:1,cx:12,cy:12,r:3}), h("path",{key:2,d:"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"})]}),
+  cube: (p) => h(Ico, {...p, d:"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"}),
+  bars: (p) => h(Ico, {...p, d:"M3 3v18h18M7 14v4M12 9v9M17 4v14"}),
+  check: (p) => h(Ico, {...p, d:"M20 6 9 17l-5-5"}),
+  x: (p) => h(Ico, {...p, d:"M18 6 6 18M6 6l12 12"}),
+  alert: (p) => h(Ico, {...p, d:"M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"}),
+  info: (p) => h(Ico, {...p, kids:[h("circle",{key:1,cx:12,cy:12,r:9}), h("path",{key:2,d:"M12 16v-4M12 8h.01"})]}),
+  dl: (p) => h(Ico, {...p, d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"}),
+  chev: (p) => h(Ico, {...p, d:"m9 18 6-6-6-6"}),
+  plus: (p) => h(Ico, {...p, d:"M12 5v14M5 12h14"}),
+  trash: (p) => h(Ico, {...p, d:"M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"}),
+  eye: (p) => h(Ico, {...p, kids:[h("path",{key:1,d:"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"}), h("circle",{key:2,cx:12,cy:12,r:3})]}),
+  shield: (p) => h(Ico, {...p, d:"M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"}),
+  refresh: (p) => h(Ico, {...p, d:"M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"}),
+  bact: (p) => h(Ico, {...p, kids:[h("path",{key:1,d:"M5 7c2-3 7-3 9 0M19 17c-2 3-7 3-9 0M8 4v2M16 18v2M4 9h2M18 15h2"}), h("ellipse",{key:2,cx:12,cy:12,rx:5,ry:7,transform:"rotate(-30 12 12)"})]}),
+};
+
+// ===== Sidebar =====
+function Sidebar({current, onNavigate, model}) {
+  const items = [
+    { id:"dashboard", label:"Panel principal", icon:I.dash, group:"Inicio" },
+    { id:"single", label:"Análisis individual", icon:I.upload, group:"Diagnóstico", badge:"HU-001" },
+    { id:"heatmap", label:"Visualización Grad-CAM", icon:I.heat, group:"Diagnóstico", badge:"HU-002" },
+    { id:"batch", label:"Procesamiento por lote", icon:I.layers, group:"Diagnóstico", badge:"HU-003" },
+    { id:"models", label:"Modelos disponibles", icon:I.cube, group:"IA" },
+    { id:"compare", label:"Comparativa de modelos", icon:I.bars, group:"IA" },
+    { id:"history", label:"Historial de estudios", icon:I.history, group:"Registros" },
+    { id:"settings", label:"Configuración", icon:I.cog, group:"Sistema" },
+  ];
+  const groups = [...new Set(items.map(i => i.group))];
+  return h("aside", {className:"sidebar"},
+    h("div", {className:"brand"},
+      h("div", {className:"brand-mark"}, "Hp"),
+      h("div", null,
+        h("div", {className:"brand-name"}, "EndoScan AI"),
+        h("div", {className:"brand-sub"}, model.name + " · " + model.version),
+      ),
+    ),
+    h("nav", {className:"nav"},
+      ...groups.flatMap(g => [
+        h("div", {key:"s-"+g, className:"nav-section"}, g),
+        ...items.filter(i => i.group === g).map(i =>
+          h("button", {key:i.id, className:"nav-item"+(current===i.id?" active":""), onClick:() => onNavigate(i.id)},
+            h(i.icon, {className:"nav-icon", size:16}),
+            h("span", null, i.label),
+            i.badge && h("span", {className:"nav-badge"}, i.badge),
+          )
+        ),
+      ]),
+    ),
+    h("div", {className:"sidebar-footer"},
+      h("div", {className:"avatar"}, "DR"),
+      h("div", {style:{flex:1, minWidth:0}},
+        h("div", {className:"user-name"}, "Dr. R. Mendoza"),
+        h("div", {className:"user-role"}, "Gastroenterología · HU-12"),
+      ),
+    ),
+  );
+}
+
+// ===== Topbar (with model selector) =====
+function Topbar({crumbs, model, onModelChange, onOpenCompare}) {
+  return h("div", {className:"topbar"},
+    h("div", {className:"crumbs"},
+      ...crumbs.flatMap((c,i) => [
+        i>0 && h(I.chev, {key:"c"+i, size:12}),
+        i===crumbs.length-1 ? h("strong",{key:"l"+i}, c) : h("span",{key:"s"+i}, c),
+      ].filter(Boolean)),
+    ),
+    h("div", {className:"topbar-spacer"}),
+    h("div", {className:"model-pill"},
+      h(I.cube, {size:14}),
+      h("span", null, "Modelo:"),
+      h("select", {className:"select", style:{padding:"4px 8px", fontSize:12, border:"none", background:"transparent", color:"var(--blue-700)", fontWeight:600}, value:model.id, onChange:e=>onModelChange(e.target.value)},
+        ...MODELS.map(m => h("option", {key:m.id, value:m.id}, m.name + " · " + m.version)),
+      ),
+      h("span", {className:"mono"}, "lat≈" + model.metrics.latency_ms + "ms"),
+    ),
+    h("button", {className:"btn btn-ghost", onClick:onOpenCompare, title:"Comparar modelos"},
+      h(I.bars, {size:14}), "Comparar"),
+    h("div", {className:"system-status"},
+      h("span", {className:"dot"}),
+      h("span", null, "API conectada"),
+    ),
+  );
+}
+
+function Disclaimer() {
+  return h("div", {className:"disclaimer"},
+    h(I.alert, {size:14}),
+    h("span", null,
+      h("strong", null, "Herramienta de apoyo diagnóstico."), " No reemplaza el criterio clínico del especialista. Toda decisión terapéutica debe ser validada por un gastroenterólogo certificado.",
+    ),
+  );
+}
+
+// ===== Dashboard =====
+function Dashboard({onNavigate, model}) {
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1", {className:"page-title"}, "Buen día, Dr. Mendoza"),
+        h("div", {className:"page-sub"}, "Panel de detección de Helicobacter pylori · Modelo activo: ", h("strong",null, model.name + " " + model.version)),
+      ),
+      h("div", {className:"row", style:{gap:8}},
+        h("button", {className:"btn btn-secondary"}, h(I.refresh,{size:14}), "Sincronizar"),
+        h("button", {className:"btn btn-primary", onClick:()=>onNavigate("single")}, h(I.plus,{size:14}), "Nuevo análisis"),
+      ),
+    ),
+    h("div", {className:"kpi-grid", style:{marginBottom:24}},
+      h("div", {className:"kpi"}, h("div",{className:"kpi-label"},"Estudios hoy"), h("div",{className:"kpi-value"},"24"), h("div",{className:"kpi-delta up"},"↑ 12% vs. ayer")),
+      h("div", {className:"kpi"}, h("div",{className:"kpi-label"},"Tasa positivos (7 d)"), h("div",{className:"kpi-value"},"31.2%"), h("div",{className:"kpi-delta down"},"↓ 2.1 pp")),
+      h("div", {className:"kpi"}, h("div",{className:"kpi-label"},"Latencia media"), h("div",{className:"kpi-value"}, (model.metrics.latency_ms/1000).toFixed(2), h("small",null,"s")), h("div",{className:"kpi-delta"},"objetivo < 2.0 s")),
+      h("div", {className:"kpi"}, h("div",{className:"kpi-label"},"Confianza media"), h("div",{className:"kpi-value"}, (model.metrics.accuracy*100).toFixed(1), h("small",null,"%")), h("div",{className:"kpi-delta up"},"+0.6 pp esta semana")),
+    ),
+    h("div", {className:"section-title"}, "Acciones rápidas"),
+    h("div", {style:{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:28}},
+      [["single","upload","Cargar imagen individual","Sube una imagen endoscópica (≤10 MB) y obtén diagnóstico en menos de 2 s."],
+       ["heatmap","heat","Visualizar Grad-CAM","Inspecciona qué regiones activaron la decisión del modelo."],
+       ["batch","layers","Procesar lote","Hasta 50 imágenes en paralelo. Exporta resultados en CSV."]].map(([k,ic,t,d]) =>
+        h("button", {key:k, className:"model-card", onClick:()=>onNavigate(k)},
+          h("div", {style:{width:36,height:36,borderRadius:8,background:"var(--blue-50)",color:"var(--blue-700)",display:"grid",placeItems:"center",marginBottom:12}}, h(I[ic],{size:18})),
+          h("div", {className:"name"}, t),
+          h("div", {style:{fontSize:12.5, color:"var(--ink-500)", marginTop:4}}, d),
+        )
+      ),
+    ),
+  );
+}
+
+// ===== HU-001 Single =====
+function SingleScreen({model}) {
+  const [file, setFile] = useState(null);
+  const [drag, setDrag] = useState(false);
+  const [phase, setPhase] = useState("idle");
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const inputRef = useRef(null);
+
+  const accept = (f) => {
+    setError(null); setResult(null); setPhase("idle");
+    if (!f) return;
+    if (!["image/jpeg","image/png","image/jpg"].includes(f.type)) { setError({k:"format", m:"Formato no admitido. Use JPG o PNG."}); return; }
+    if (f.size > 10*1024*1024) { setError({k:"size", m:"El archivo supera 10 MB."}); return; }
+    const r = new FileReader();
+    r.onload = () => setFile({name:f.name, size:f.size, src:r.result, type:f.type});
+    r.readAsDataURL(f);
+  };
+  const useSample = (k) => { setError(null); setResult(null); setPhase("idle"); setFile({name:SAMPLES[k].name, size:SAMPLES[k].size*1024*1024, src:SAMPLES[k].src, type:"image/jpeg", _s:k}); };
+  const analyze = async (opts) => {
+    opts = opts || {};
+    setPhase("loading"); setProgress(0); setError(null); setResult(null);
+    const t0 = Date.now();
+    const targetMs = model.metrics.latency_ms;
+    const iv = setInterval(()=>{ setProgress(Math.min(95, Math.round((Date.now()-t0)/targetMs*100))); }, 80);
+    try {
+      const positive = file._s ? file._s.startsWith("pos") : undefined;
+      const heat = file._s ? SAMPLES[file._s].heat : null;
+      const res = await mockPredict(file, {modelId: model.id, positive, heat, forceError: opts.forceError});
+      clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
+    } catch (e) {
+      clearInterval(iv); setPhase("error"); setError({k:"api", m:"Tiempo de espera agotado. Verifica conexión con /predict."});
+    }
+  };
+  const reset = () => { setFile(null); setResult(null); setPhase("idle"); setProgress(0); setError(null); };
+
+  const positive = result && result.clase === "Positivo";
+  const probShown = result ? (positive ? result.prob : 1-result.prob) : 0;
+  const conf = result ? Math.max(result.prob, 1-result.prob) : 0;
+  const confTier = conf >= 0.85 ? {l:"alta", c:"var(--green-600)"} : conf >= 0.65 ? {l:"media", c:"var(--amber-600)"} : {l:"baja", c:"var(--red-600)"};
+
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1", {className:"page-title"}, "Análisis individual"),
+        h("div", {className:"page-sub"}, "HU-001 · Inferencia con ", h("strong",null, model.name), " · objetivo < 2 000 ms"),
+      ),
+      h("button", {className:"btn btn-ghost", onClick:reset, disabled:phase==="loading"}, h(I.refresh,{size:14}), "Reiniciar"),
+    ),
+    h("div", {style:{display:"grid", gridTemplateColumns:"1.1fr 1fr", gap:20}},
+      // LEFT
+      h("div", {className:"card"},
+        h("div", {className:"card-head"},
+          h("div", null, h("h3",{className:"card-title"},"1 · Imagen endoscópica"), h("div",{className:"card-sub"},"JPG/PNG · máx. 10 MB · resolución ≥ 512×512 px")),
+          file && phase!=="loading" && h("button",{className:"btn btn-ghost btn-icon", onClick:reset, title:"Quitar"}, h(I.trash,{size:14})),
+        ),
+        h("div", {className:"card-pad"},
+          !file ? h("div", null,
+            h("div", {"data-dropzone":true, className:"dropzone"+(drag?" active":""),
+              onDragOver:(e)=>{e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect="copy"; setDrag(true);},
+              onDragLeave:(e)=>{ if(e.currentTarget.contains(e.relatedTarget)) return; setDrag(false); },
+              onDrop:(e)=>{e.preventDefault(); e.stopPropagation(); setDrag(false); accept(e.dataTransfer.files && e.dataTransfer.files[0]);},
+              onClick:()=>inputRef.current && inputRef.current.click(), role:"button"},
+              h("div", {className:"dropzone-icon"}, h(I.upload,{size:22})),
+              h("div", {className:"dropzone-title"}, "Arrastra una imagen aquí"),
+              h("div", {className:"dropzone-sub"}, "o ", h("span",{className:"linklike"},"selecciona un archivo")),
+              h("input", {ref:inputRef, type:"file", accept:"image/jpeg,image/png", hidden:true, onChange:(e)=>accept(e.target.files && e.target.files[0])}),
+            ),
+            h("div", {style:{marginTop:16}},
+              h("div", {className:"section-title", style:{marginBottom:8}}, "O usa una muestra de prueba"),
+              h("div", {style:{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8}},
+                ["pos1","pos2","neg1","neg2"].map(k =>
+                  h("button", {key:k, className:"btn btn-secondary", onClick:()=>useSample(k), style:{justifyContent:"flex-start", padding:8, gap:8}},
+                    h("img", {src:SAMPLES[k].src, style:{width:28,height:28,borderRadius:4,objectFit:"cover"}, alt:""}),
+                    h("span", {style:{fontSize:12}}, SAMPLES[k].name.replace(".jpg","")),
+                  )
+                ),
+              ),
+            ),
+          ) : h("div", null,
+            h("div", {className:"preview-wrap"},
+              h("img", {src:file.src, alt:file.name}),
+              h("div", {className:"preview-chip"}, file.name + " · " + (file.size/1024/1024).toFixed(2) + " MB"),
+            ),
+            h("div", {className:"row between", style:{marginTop:16}},
+              h("span", {className:"badge badge-info"}, "Modelo: " + model.name),
+              h("div", {className:"row", style:{gap:8}},
+                h("button", {className:"btn btn-secondary", onClick:reset, disabled:phase==="loading"}, h(I.x,{size:14}), "Cambiar"),
+                h("button", {className:"btn btn-primary", onClick:()=>analyze(), disabled:phase==="loading"},
+                  phase==="loading" ? h("span",{className:"spinner-sm"}) : h(I.bact,{size:14}),
+                  phase==="loading" ? " Analizando…" : " Analizar imagen"),
+              ),
+            ),
+          ),
+          error && h("div", {className:"alert alert-error", style:{marginTop:16}},
+            h(I.alert,{size:16}),
+            h("div", null,
+              h("strong", null, error.k==="format"?"Formato inválido":error.k==="size"?"Tamaño excedido":"Error de inferencia"),
+              h("div", {style:{marginTop:2}}, error.m),
+              error.k==="api" && h("button", {className:"btn btn-secondary", style:{marginTop:8}, onClick:()=>analyze()}, h(I.refresh,{size:12}), "Reintentar"),
+            ),
+          ),
+          file && phase==="idle" && h("div", {style:{marginTop:12, fontSize:11.5, color:"var(--ink-500)"}},
+            "Demo: ", h("span", {className:"linklike", onClick:()=>analyze({forceError:true})}, "simular timeout API"),
+          ),
+        ),
+      ),
+      // RIGHT
+      h("div", {className:"card"},
+        h("div", {className:"card-head"},
+          h("div", null, h("h3",{className:"card-title"},"2 · Resultado del modelo"), h("div",{className:"card-sub"}, model.name + " " + model.version + " · " + model.arch)),
+          result && h("span", {className:"badge "+(positive?"badge-pos":"badge-neg")}, result.clase.toUpperCase()),
+        ),
+        h("div", {className:"card-pad"},
+          phase==="idle" && !result && h("div",{className:"result-empty"},
+            h(I.bact,{size:32}),
+            h("div", null, h("strong",null,"Sin resultados aún")),
+            h("div", {style:{maxWidth:280, fontSize:12.5}}, "Carga una imagen y presiona Analizar."),
+          ),
+          phase==="loading" && h("div", {style:{textAlign:"center", padding:"20px 0"}},
+            h("div", {className:"spinner"}),
+            h("div", {style:{fontWeight:600}}, "Procesando con " + model.name + "…"),
+            h("div", {className:"muted", style:{fontSize:12.5, marginTop:4}}, "Pre-procesamiento → forward pass → Grad-CAM"),
+            h("div", {className:"progress", style:{marginTop:16}}, h("div",{className:"progress-fill", style:{width:progress+"%"}})),
+            h("div", {className:"row between", style:{marginTop:8, fontSize:11.5, color:"var(--ink-500)"}},
+              h("span",{className:"mono"}, progress+"%"),
+              h("span",{className:"mono"}, "objetivo < 2.0 s"),
+            ),
+          ),
+          phase==="done" && result && h("div", null,
+            h("div", {className:"verdict "+(positive?"verdict-pos":"verdict-neg")},
+              h("div", null,
+                h("div",{className:"verdict-label"},"Clase predicha"),
+                h("div",{className:"verdict-value", style:{color:positive?"var(--red-600)":"var(--green-600)"}}, result.clase + (positive?" · H. pylori":" · sin hallazgo")),
+              ),
+              h("div", {style:{textAlign:"right"}},
+                h("div",{className:"verdict-prob", style:{color:positive?"var(--red-600)":"var(--green-600)"}}, (probShown*100).toFixed(1)+"%"),
+                h("div",{className:"mono", style:{fontSize:11, color:"var(--ink-500)"}}, "P("+result.clase.toLowerCase()+")"),
+              ),
+            ),
+            h("div", {style:{marginTop:16}},
+              h("div", {className:"row between", style:{marginBottom:6}},
+                h("span",{className:"section-title", style:{marginBottom:0}},"Confianza"),
+                h("span",{className:"badge", style:{background:"var(--ink-100)", color:confTier.c}}, h(I.shield,{size:10}), " Confianza " + confTier.l),
+              ),
+              h("div", {className:"confbar"}, h("div",{className:"confbar-fill", style:{width:(conf*100)+"%", background:confTier.c}})),
+            ),
+            h("div", {className:"metrics", style:{marginTop:16}},
+              h("div",{className:"metric"}, h("div",{className:"metric-label"},"Probabilidad"), h("div",{className:"metric-value"}, (result.prob*100).toFixed(2), h("small",null,"%"))),
+              h("div",{className:"metric"}, h("div",{className:"metric-label"},"Latencia"), h("div",{className:"metric-value", style:{color:result.latencia_ms<2000?"var(--ink-900)":"var(--red-600)"}}, result.latencia_ms, h("small",null,"ms"))),
+              h("div",{className:"metric"}, h("div",{className:"metric-label"},"Modelo"), h("div",{className:"metric-value", style:{fontSize:13}}, model.version)),
+            ),
+            positive && h("div", {className:"alert alert-warn", style:{marginTop:14}},
+              h(I.info,{size:16}),
+              h("div", null,
+                h("strong",null,"Hallazgo positivo sugerido. "),
+                "Confirmar con prueba de ureasa, histología o test del aliento. Verifica el Grad-CAM antes de comunicar al paciente.",
+              ),
+            ),
+            h("div", {className:"row", style:{marginTop:16, gap:8}},
+              h("button",{className:"btn btn-secondary"}, h(I.dl,{size:14}), "Descargar informe PDF"),
+              h("button",{className:"btn btn-ghost"}, h(I.heat,{size:14}), "Ver Grad-CAM"),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ===== HU-002 Heatmap =====
+function HeatmapScreen({model}) {
+  const [k, setK] = useState("pos1");
+  const [op, setOp] = useState(0.65);
+  const [show, setShow] = useState(true);
+  const s = SAMPLES[k]; const positive = k.startsWith("pos");
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1",{className:"page-title"},"Visualización Grad-CAM"),
+        h("div",{className:"page-sub"},"HU-002 · Mapa de activación de " + model.name),
+      ),
+      h("div", {className:"row", style:{gap:8}},
+        h("select", {className:"select", value:k, onChange:e=>setK(e.target.value)},
+          h("option",{value:"pos1"},"CASE-0917 · Positivo"),
+          h("option",{value:"pos2"},"CASE-1042 · Positivo"),
+          h("option",{value:"neg1"},"CASE-0863 · Negativo"),
+          h("option",{value:"neg2"},"CASE-0728 · Negativo"),
+        ),
+        h("button",{className:"btn btn-primary"}, h(I.dl,{size:14}), "Descargar PNG"),
+      ),
+    ),
+    h("div", {style:{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}},
+      h("div",{className:"card"},
+        h("div",{className:"card-head"},
+          h("div",null, h("h3",{className:"card-title"},"Imagen original"), h("div",{className:"card-sub"},"Captura endoscópica · luz blanca")),
+          h("span",{className:"badge badge-neutral"},"ORIGINAL"),
+        ),
+        h("div", {style:{padding:16}}, h("div",{className:"heatmap-stage"}, h("img",{src:s.src}))),
+      ),
+      h("div",{className:"card"},
+        h("div",{className:"card-head"},
+          h("div",null, h("h3",{className:"card-title"},"Grad-CAM"), h("div",{className:"card-sub"}, "Capa layer4.bn3 · " + model.name)),
+          h("span",{className:"badge "+(positive?"badge-pos":"badge-neg")}, positive?"POSITIVO":"NEGATIVO"),
+        ),
+        h("div", {style:{padding:16}},
+          h("div",{className:"heatmap-stage"},
+            h("img",{src:s.src}),
+            show && h("img",{className:"heat", src:s.heat, style:{opacity:op}}),
+          ),
+          h("div", {style:{marginTop:14}},
+            h("div",{className:"row between", style:{marginBottom:6}},
+              h("span",{className:"section-title", style:{marginBottom:0}},"Opacidad del overlay"),
+              h("span",{className:"mono", style:{fontSize:12}}, Math.round(op*100)+"%"),
+            ),
+            h("input",{className:"slider", type:"range", min:"0", max:"1", step:"0.01", value:op, onChange:e=>setOp(Number(e.target.value))}),
+            h("div",{className:"row", style:{marginTop:10, gap:10}},
+              h("label",{className:"row", style:{gap:6, fontSize:12}},
+                h("input",{type:"checkbox", checked:show, onChange:e=>setShow(e.target.checked)}),
+                "Mostrar superposición",
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+    h("div", {style:{display:"grid", gridTemplateColumns:"1fr 1.4fr", gap:20, marginTop:20}},
+      h("div", {className:"card card-pad"},
+        h("div",{className:"section-title"},"Leyenda de activación"),
+        h("div",{className:"legend"},
+          h("span",{className:"legend-label"},"Baja"),
+          h("div",{className:"legend-bar"}),
+          h("span",{className:"legend-label"},"Alta"),
+        ),
+      ),
+      h("div", {className:"card card-pad"},
+        h("div",{className:"section-title"},"Explicación clínica"),
+        positive
+          ? h("p",{style:{fontSize:13.5, color:"var(--ink-700)", lineHeight:1.6, margin:0}},
+              "El modelo concentra su atención en el ", h("strong",null,"cuadrante superior-derecho"),
+              " (x: 360–440, y: 180–260), donde se observa una zona de mucosa con ",
+              h("strong",null,"patrón nodular irregular y enrojecimiento focal"),
+              " compatible con cambios inflamatorios crónicos asociados a colonización por H. pylori.")
+          : h("p",{style:{fontSize:13.5, color:"var(--ink-700)", lineHeight:1.6, margin:0}},
+              "La activación es ", h("strong",null,"difusa y de baja magnitud"),
+              ", sin focos claros sobre la mucosa. El modelo no encuentra patrones discriminativos."),
+        h("div",{className:"alert alert-info", style:{marginTop:14}},
+          h(I.info,{size:16}),
+          h("div",null, h("strong",null,"Interpretación asistida. "), "El Grad-CAM muestra qué mira el modelo, no por qué. Validar con criterio clínico."),
+        ),
+      ),
+    ),
+  );
+}
+
+// ===== HU-003 Batch =====
+function BatchScreen({model}) {
+  const [items, setItems] = useState([]);
+  const [running, setRunning] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const inputRef = useRef(null);
+
+  const loadDemo = () => {
+    const ks = ["pos1","neg1","pos2","neg2","pos1","neg1","pos2","neg2","pos1","neg1","pos2","neg2"];
+    setItems(ks.map((k,i)=>({id:"ITM-"+(1000+i), name:"case_"+(1000+i)+".jpg", size:(1+Math.random()*4)*1024*1024, status:"queued", thumb:SAMPLES[k].src, _h:k})));
+  };
+  const run = async () => {
+    setRunning(true);
+    for (const it of items) {
+      if (it.status !== "queued") continue;
+      setItems(prev => prev.map(p => p.id===it.id ? {...p, status:"running"} : p));
+      const ms = Math.round(model.metrics.latency_ms * (0.6 + Math.random()*0.5));
+      await new Promise(r=>setTimeout(r, ms));
+      const positive = it._h ? it._h.startsWith("pos") : Math.random()>0.6;
+      const prob = positive ? 0.7+Math.random()*0.25 : 0.05+Math.random()*0.25;
+      setItems(prev => prev.map(p => p.id===it.id ? {...p, status:"done", clase:positive?"Positivo":"Negativo", prob:Number(prob.toFixed(4)), latencia:ms} : p));
+    }
+    setRunning(false);
+  };
+  const exportCSV = () => {
+    const rows = [["id","archivo","modelo","clase","prob","latencia_ms","estado"]];
+    items.forEach(i => rows.push([i.id,i.name,model.name+"_"+model.version,i.clase||"",i.prob||"",i.latencia||"",i.status]));
+    const blob = new Blob([rows.map(r=>r.join(",")).join("\n")], {type:"text/csv"});
+    const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=u; a.download="lote.csv"; a.click(); URL.revokeObjectURL(u);
+  };
+
+  const total = items.length, done = items.filter(i=>i.status==="done").length, queued = items.filter(i=>i.status==="queued").length;
+  const positives = items.filter(i=>i.clase==="Positivo").length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const filt = items.filter(i => filter==="all" || (filter==="pos"&&i.clase==="Positivo") || (filter==="neg"&&i.clase==="Negativo"));
+
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1",{className:"page-title"},"Procesamiento por lote"),
+        h("div",{className:"page-sub"},"HU-003 · Hasta 50 imágenes · Modelo: ", h("strong",null,model.name)),
+      ),
+      h("div",{className:"row", style:{gap:8}},
+        h("button",{className:"btn btn-secondary", onClick:exportCSV, disabled:!done}, h(I.dl,{size:14}), "Exportar CSV"),
+        h("button",{className:"btn btn-primary", onClick:run, disabled:!queued || running},
+          running ? h("span",{className:"spinner-sm"}) : h(I.bact,{size:14}),
+          running ? " Procesando…" : " Procesar " + queued + " imagen" + (queued===1?"":"es")),
+      ),
+    ),
+    h("div",{className:"kpi-grid", style:{gridTemplateColumns:"repeat(5,1fr)", marginBottom:20}},
+      h("div",{className:"kpi"}, h("div",{className:"kpi-label"},"Total"), h("div",{className:"kpi-value"}, total, h("small",null,"/50"))),
+      h("div",{className:"kpi"}, h("div",{className:"kpi-label"},"En cola"), h("div",{className:"kpi-value", style:{color:"var(--ink-500)"}}, queued)),
+      h("div",{className:"kpi"}, h("div",{className:"kpi-label"},"Completadas"), h("div",{className:"kpi-value"}, done)),
+      h("div",{className:"kpi"}, h("div",{className:"kpi-label"},"Positivos"), h("div",{className:"kpi-value", style:{color:"var(--red-600)"}}, positives)),
+      h("div",{className:"kpi"}, h("div",{className:"kpi-label"},"Avance"), h("div",{className:"kpi-value"}, pct + "%")),
+    ),
+    !total && h("div",{className:"card"},
+      h("div", {style:{padding:20}},
+        h("div", {"data-dropzone":true, className:"dropzone", onClick:()=>inputRef.current && inputRef.current.click()},
+          h("div",{className:"dropzone-icon"}, h(I.layers,{size:22})),
+          h("div",{className:"dropzone-title"},"Arrastra hasta 50 imágenes aquí"),
+          h("div",{className:"dropzone-sub"},"o ", h("span",{className:"linklike"},"selecciona archivos")),
+          h("input",{ref:inputRef, type:"file", multiple:true, accept:"image/jpeg,image/png", hidden:true}),
+          h("button",{className:"btn btn-ghost", style:{marginTop:12}, onClick:(e)=>{e.stopPropagation(); loadDemo();}},
+            h(I.plus,{size:14}), "Cargar 12 imágenes de demostración"),
+        ),
+      ),
+    ),
+    total>0 && h("div",{className:"card"},
+      h("div",{className:"card-head"},
+        h("div",{className:"row",style:{gap:8}},
+          h("h3",{className:"card-title"},"Resultados"),
+          h("span",{className:"badge badge-neutral"}, filt.length),
+        ),
+        h("div",{className:"row",style:{gap:6}},
+          ...[["all","Todos"],["pos","Positivos"],["neg","Negativos"]].map(([key,lbl])=>
+            h("button",{key, className:"btn "+(filter===key?"btn-secondary":"btn-ghost"), style:{padding:"6px 10px",fontSize:12}, onClick:()=>setFilter(key)}, lbl)),
+        ),
+      ),
+      h("div",{style:{padding:"0 20px 18px"}},
+        h("div",{className:"progress", style:{marginTop:14}}, h("div",{className:"progress-fill", style:{width:pct+"%"}})),
+      ),
+      h("table",{className:"table"},
+        h("thead",null, h("tr",null, h("th",null,"#"), h("th",null,"Archivo"), h("th",null,"Estado"), h("th",null,"Resultado"), h("th",null,"Prob."), h("th",null,"Latencia"))),
+        h("tbody",null, ...filt.map((it,idx)=>
+          h("tr",{key:it.id},
+            h("td",{className:"mono muted"}, String(idx+1).padStart(2,"0")),
+            h("td",null, h("div",{className:"row",style:{gap:10}},
+              it.thumb ? h("img",{className:"thumb",src:it.thumb}) : h("div",{className:"thumb"}),
+              h("div",null, h("div",{style:{fontWeight:500,fontSize:13}}, it.name), h("div",{className:"mono muted",style:{fontSize:11}}, (it.size/1024/1024).toFixed(2)+" MB")),
+            )),
+            h("td",null,
+              it.status==="queued" && h("span",{className:"mono muted",style:{fontSize:12}},"● en cola"),
+              it.status==="running" && h("span",{className:"row",style:{gap:6,fontSize:12,color:"var(--blue-700)"}}, h("span",{className:"spinner-sm"}), "procesando"),
+              it.status==="done" && h("span",{className:"row",style:{gap:6,fontSize:12}}, h(I.check,{size:12}), "completado"),
+            ),
+            h("td",null,
+              it.clase==="Positivo" && h("span",{className:"badge badge-pos"},"POSITIVO"),
+              it.clase==="Negativo" && h("span",{className:"badge badge-neg"},"NEGATIVO"),
+              !it.clase && h("span",{className:"muted"},"—"),
+            ),
+            h("td",{className:"mono"}, it.prob!=null ? (it.prob*100).toFixed(1)+"%" : h("span",{className:"muted"},"—")),
+            h("td",{className:"mono muted"}, it.latencia ? it.latencia+" ms" : "—"),
+          )
+        )),
+      ),
+    ),
+  );
+}
+
+// ===== Models gallery =====
+function ModelsScreen({modelId, onSelect, onCompare}) {
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1",{className:"page-title"},"Modelos disponibles"),
+        h("div",{className:"page-sub"},"Selecciona el modelo activo para los análisis. La elección se aplica a HU-001, HU-002 y HU-003."),
+      ),
+      h("button",{className:"btn btn-primary", onClick:onCompare}, h(I.bars,{size:14}), "Comparar lado a lado"),
+    ),
+    h("div",{style:{display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:16}},
+      ...MODELS.map(m =>
+        h("button", {key:m.id, className:"model-card "+(modelId===m.id?"selected":""), onClick:()=>onSelect(m.id)},
+          h("div",{className:"row between"},
+            h("div",null,
+              h("div",{className:"name"}, m.name, " ", h("span",{style:{color:"var(--ink-500)", fontWeight:500, marginLeft:4}}, m.version)),
+              h("div",{className:"arch"}, m.arch),
+            ),
+            modelId===m.id ? h("span",{className:"badge badge-info"}, h(I.check,{size:10}), " ACTIVO") :
+            m.recommended ? h("span",{className:"badge badge-warn"},"RECOMENDADO") : null,
+          ),
+          h("div",{style:{fontSize:12.5, color:"var(--ink-700)", marginTop:10, lineHeight:1.5}}, m.desc),
+          h("div",{className:"meta"},
+            h("span",{className:"chip"}, "Acc " + (m.metrics.accuracy*100).toFixed(1) + "%"),
+            h("span",{className:"chip"}, "AUC " + m.metrics.auc.toFixed(3)),
+            h("span",{className:"chip "+(m.metrics.latency_ms<2000?"best":"")}, m.metrics.latency_ms + " ms"),
+            h("span",{className:"chip"}, m.metrics.model_mb + " MB"),
+          ),
+        )
+      ),
+    ),
+    h("div",{className:"alert alert-info", style:{marginTop:20}},
+      h(I.info,{size:16}),
+      h("div",null,
+        h("strong",null,"¿Cómo escoger? "),
+        "ResNet50 ofrece el mejor balance precisión/latencia y es el modelo de referencia. ViT-B/16 supera en precisión pero su latencia (~2.2 s) excede el objetivo. EfficientNet-B3 es el más rápido y útil para procesamiento masivo. DenseNet-121 es la opción más compacta para despliegues con poca memoria.",
+      ),
+    ),
+  );
+}
+
+// ===== Compare screen =====
+function CompareScreen({modelId, onSelect}) {
+  const [picked, setPicked] = useState(MODELS.map(m=>m.id));
+  const toggle = (id) => setPicked(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]);
+  const visible = MODELS.filter(m => picked.includes(m.id));
+  const metrics = [
+    {key:"accuracy", label:"Accuracy", fmt:v=>(v*100).toFixed(2)+"%", higher:true},
+    {key:"sensitivity", label:"Sensibilidad", fmt:v=>(v*100).toFixed(2)+"%", higher:true},
+    {key:"specificity", label:"Especificidad", fmt:v=>(v*100).toFixed(2)+"%", higher:true},
+    {key:"f1", label:"F1-score", fmt:v=>v.toFixed(3), higher:true},
+    {key:"auc", label:"AUC-ROC", fmt:v=>v.toFixed(3), higher:true},
+    {key:"latency_ms", label:"Latencia", fmt:v=>v+" ms", higher:false},
+    {key:"model_mb", label:"Tamaño modelo", fmt:v=>v+" MB", higher:false},
+  ];
+
+  const bestId = (key, higher) => {
+    let best = visible[0];
+    for (const m of visible) {
+      if (higher ? m.metrics[key] > best.metrics[key] : m.metrics[key] < best.metrics[key]) best = m;
+    }
+    return best && best.id;
+  };
+
+  return h("div", {className:"content"},
+    h("div", {className:"page-header"},
+      h("div", null,
+        h("h1",{className:"page-title"},"Comparativa de modelos"),
+        h("div",{className:"page-sub"},"Métricas obtenidas en el set de validación interno (n=2 480 imágenes). Mejor valor por métrica resaltado en verde."),
+      ),
+    ),
+    h("div", {className:"card card-pad", style:{marginBottom:20}},
+      h("div",{className:"section-title"},"Modelos a comparar"),
+      h("div",{className:"row", style:{gap:8, flexWrap:"wrap"}},
+        ...MODELS.map(m =>
+          h("label", {key:m.id, className:"row", style:{gap:6, padding:"6px 10px", border:"1px solid var(--ink-200)", borderRadius:6, cursor:"pointer", background: picked.includes(m.id) ? "var(--blue-50)" : "var(--white)"}},
+            h("input",{type:"checkbox", checked:picked.includes(m.id), onChange:()=>toggle(m.id)}),
+            h("span",{style:{fontWeight:600,fontSize:13}}, m.name),
+            h("span",{className:"mono",style:{fontSize:11,color:"var(--ink-500)"}}, m.version),
+          )
+        ),
+      ),
+    ),
+    h("div",{className:"card"},
+      h("div",{className:"card-head"},
+        h("h3",{className:"card-title"},"Métricas comparadas"),
+        h("span",{className:"muted",style:{fontSize:12}}, visible.length + " de " + MODELS.length + " modelos"),
+      ),
+      h("table",{className:"table"},
+        h("thead",null, h("tr",null,
+          h("th",null,"Métrica"),
+          ...visible.map(m => h("th",{key:m.id}, m.name)),
+        )),
+        h("tbody",null, ...metrics.map(metric => {
+          const best = bestId(metric.key, metric.higher);
+          const max = Math.max(...visible.map(m => m.metrics[metric.key]));
+          return h("tr",{key:metric.key},
+            h("td",null, h("strong",null,metric.label)),
+            ...visible.map(m => {
+              const v = m.metrics[metric.key];
+              const ratio = metric.higher ? v/max : (max-v)/max + 0.2;
+              return h("td", {key:m.id, style:{minWidth:140}},
+                h("div",{className:"row",style:{gap:8}},
+                  h("div",{style:{flex:1, height:6, background:"var(--ink-100)", borderRadius:999, overflow:"hidden"}},
+                    h("div",{style:{width:Math.min(100,ratio*100)+"%", height:"100%", background: m.id===best ? "var(--green-600)" : "var(--blue-700)", borderRadius:999}}),
+                  ),
+                  h("span",{className:"mono", style:{fontSize:12, fontWeight: m.id===best?700:500, color: m.id===best?"var(--green-600)":"var(--ink-900)", minWidth:64, textAlign:"right"}}, metric.fmt(v)),
+                ),
+              );
+            }),
+          );
+        })),
+      ),
+    ),
+    h("div",{className:"card", style:{marginTop:20}},
+      h("div",{className:"card-head"}, h("h3",{className:"card-title"},"Recomendación operativa")),
+      h("div",{className:"card-pad"},
+        h("div",{style:{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}},
+          h("div",{style:{padding:14, border:"1px solid var(--green-100)", background:"var(--green-50)", borderRadius:8}},
+            h("div",{style:{fontWeight:700, color:"var(--green-600)"}}, "Mayor precisión"),
+            h("div",{style:{fontSize:13, marginTop:4}}, MODELS.reduce((a,b)=>a.metrics.accuracy>b.metrics.accuracy?a:b).name),
+            h("div",{className:"muted",style:{fontSize:12, marginTop:4}}, "Recomendado para revisión a posteriori, casos dudosos."),
+          ),
+          h("div",{style:{padding:14, border:"1px solid var(--blue-100)", background:"var(--blue-50)", borderRadius:8}},
+            h("div",{style:{fontWeight:700, color:"var(--blue-700)"}}, "Mejor balance"),
+            h("div",{style:{fontSize:13, marginTop:4}}, "ResNet50-Hp"),
+            h("div",{className:"muted",style:{fontSize:12, marginTop:4}}, "Modelo de producción por defecto. Cumple latencia <2 s."),
+          ),
+          h("div",{style:{padding:14, border:"1px solid var(--ink-200)", background:"var(--ink-50)", borderRadius:8}},
+            h("div",{style:{fontWeight:700}}, "Más rápido / liviano"),
+            h("div",{style:{fontSize:13, marginTop:4}}, MODELS.reduce((a,b)=>a.metrics.latency_ms<b.metrics.latency_ms?a:b).name),
+            h("div",{className:"muted",style:{fontSize:12, marginTop:4}}, "Ideal para procesamiento por lote y entornos con CPU limitada."),
+          ),
+        ),
+        h("div",{className:"row", style:{marginTop:16, gap:8, justifyContent:"flex-end"}},
+          h("button",{className:"btn btn-primary", onClick:()=>onSelect("resnet50")}, "Aplicar recomendación (ResNet50)"),
+        ),
+      ),
+    ),
+  );
+}
+
+// ===== App =====
+function App() {
+  const [screen, setScreen] = useState("single");
+  const [modelId, setModelId] = useState("resnet50");
+  const model = MODELS.find(m => m.id === modelId);
+  const crumbs = {
+    dashboard:["EndoScan AI","Panel principal"],
+    single:["EndoScan AI","Diagnóstico","Análisis individual"],
+    heatmap:["EndoScan AI","Diagnóstico","Visualización Grad-CAM"],
+    batch:["EndoScan AI","Diagnóstico","Procesamiento por lote"],
+    models:["EndoScan AI","IA","Modelos disponibles"],
+    compare:["EndoScan AI","IA","Comparativa de modelos"],
+    history:["EndoScan AI","Registros","Historial"],
+    settings:["EndoScan AI","Sistema","Configuración"],
+  }[screen] || ["EndoScan AI"];
+
+  const render = () => {
+    switch(screen) {
+      case "dashboard": return h(Dashboard, {onNavigate:setScreen, model});
+      case "single": return h(SingleScreen, {model});
+      case "heatmap": return h(HeatmapScreen, {model});
+      case "batch": return h(BatchScreen, {model});
+      case "models": return h(ModelsScreen, {modelId, onSelect:setModelId, onCompare:()=>setScreen("compare")});
+      case "compare": return h(CompareScreen, {modelId, onSelect:setModelId});
+      default: return h("div",{className:"content"},
+        h("div",{className:"page-header"}, h("div",null, h("h1",{className:"page-title"}, screen==="history"?"Historial":screen==="settings"?"Configuración":"Sección"))),
+        h("div",{className:"card card-pad", style:{textAlign:"center", padding:60}}, h("div",{className:"muted"},"Sección en desarrollo.")),
+      );
+    }
+  };
+
+  return h("div", {className:"app"},
+    h(Sidebar, {current:screen, onNavigate:setScreen, model}),
+    h("div",{className:"main"},
+      h(Topbar, {crumbs, model, onModelChange:setModelId, onOpenCompare:()=>setScreen("compare")}),
+      h("div",{"data-screen-label":screen}, render()),
+      h(Disclaimer, null),
+    ),
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App, null));
+</script>
+</body>
+</html>

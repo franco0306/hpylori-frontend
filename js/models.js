@@ -1,6 +1,3 @@
-// Catálogo de modelos reales entrenados en Google Colab T4
-// Métricas obtenidas en el set de validación (n=2,047 imágenes)
-
 export const MODELS = [
   {
     id: "resnet50",
@@ -13,7 +10,6 @@ export const MODELS = [
       sensitivity: 0.8733,
       specificity: 0.8813,
       auc:         0.9200,
-      f1:          0.8302,
       latency_ms:  68,
       model_mb:    98
     },
@@ -29,7 +25,6 @@ export const MODELS = [
       sensitivity: 0.8154,
       specificity: 0.8803,
       auc:         0.9100,
-      f1:          0.8264,
       latency_ms:  22,
       model_mb:    22
     },
@@ -45,7 +40,6 @@ export const MODELS = [
       sensitivity: 0.8181,
       specificity: 0.8735,
       auc:         0.9050,
-      f1:          0.8242,
       latency_ms:  28,
       model_mb:    20
     },

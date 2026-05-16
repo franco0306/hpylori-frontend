@@ -4,7 +4,7 @@
 export const CONFIG = {
   // URL base del backend que sirve el modelo (FastAPI / Flask / Node, etc.).
   // Ej.: "http://localhost:8000"  o  "/api"  si usas el mismo origen.
-  API_BASE_URL: "http://localhost:8000",
+  API_BASE_URL: "https://franco0306-hpylori-detection.hf.space",
 
   // Endpoint que recibe la imagen y devuelve la predicción.
   PREDICT_PATH: "/predict",

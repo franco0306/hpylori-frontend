@@ -1,3 +1,6 @@
+// Catálogo de modelos reales entrenados en Google Colab T4
+// Métricas obtenidas en el set de validación (n=2,047 imágenes)
+
 export const MODELS = [
   {
     id: "resnet50",
@@ -13,7 +16,7 @@ export const MODELS = [
       latency_ms:  68,
       model_mb:    98
     },
-    desc: "Modelo seleccionado. Mejor recall (87.33%) — crítico para no perder casos positivos de H. pylori.",
+    desc: "Arquitectura residual de 23.5M parámetros. Mejor rendimiento diagnóstico con Accuracy 88.13% y Recall 87.33%. Seleccionado como modelo de producción por su capacidad de detectar casos positivos de H. pylori sin sacrificar especificidad.",
   },
   {
     id: "mobilenetv3",
@@ -28,7 +31,7 @@ export const MODELS = [
       latency_ms:  22,
       model_mb:    22
     },
-    desc: "Modelo más rápido y liviano. Ideal para procesamiento por lote en entornos con recursos limitados.",
+    desc: "Arquitectura ligera de 4.2M parámetros. El más rápido del benchmarking con solo 22ms de inferencia. Accuracy 88.03% y Recall 81.54%. Ideal para procesamiento por lote en entornos con recursos computacionales limitados.",
   },
   {
     id: "efficientnetb0",
@@ -43,7 +46,7 @@ export const MODELS = [
       latency_ms:  28,
       model_mb:    20
     },
-    desc: "Mejor balance entre velocidad y precisión. Compound scaling optimizado para imágenes médicas.",
+    desc: "Arquitectura de 4.0M parámetros con compound scaling. Accuracy 87.35% y Recall 81.81%. Mejor balance entre velocidad (28ms) y tamaño de modelo (20MB). Opción recomendada para despliegues con memoria limitada.",
   },
 ];
 

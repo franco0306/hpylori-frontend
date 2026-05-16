@@ -5,6 +5,8 @@ const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
+const API_URL = "https://franco0306-hpylori-detection.hf.space";
+
 export function BatchScreen({ model }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
@@ -20,7 +22,7 @@ export function BatchScreen({ model }) {
       status: "queued",
       thumb: SAMPLES[k].src,
       file: null,
-      _h: k,
+      _demo: true,
     })));
   };
 
@@ -32,22 +34,26 @@ export function BatchScreen({ model }) {
 
       try {
         const fd = new FormData();
+
         if (it.file) {
+          // imagen real subida por el usuario
           fd.append("file", it.file, it.name);
-        } else if (it.thumb && it.thumb.startsWith("data:")) {
-          const blob = await (await fetch(it.thumb)).blob();
-          fd.append("file", blob, it.name);
-        } else if (it.thumb) {
-          const blob = await (await fetch(it.thumb)).blob();
-          fd.append("file", blob, it.name);
+        } else if (it._demo && it.thumb) {
+          // imagen de demo (data URL base64)
+          const res = await fetch(it.thumb);
+          const blob = await res.blob();
+          fd.append("file", blob, it.name || "demo.jpg");
         }
+
         fd.append("model_id", model.id);
 
         const start = performance.now();
-        const res = await fetch("http://127.0.0.1:8000/predict", {
+        const res = await fetch(API_URL + "/predict", {
           method: "POST",
           body: fd,
         });
+
+        if (!res.ok) throw new Error("HTTP_" + res.status);
         const data = await res.json();
         const ms = Math.round(performance.now() - start);
 
@@ -145,6 +151,7 @@ export function BatchScreen({ model }) {
                 status: "queued",
                 thumb: URL.createObjectURL(f),
                 file: f,
+                _demo: false,
               })));
             },
           }),

@@ -20,5 +20,5 @@ export const CONFIG = {
   ACCEPTED_MIME: ["image/jpeg", "image/png", "image/jpg"],
 
   // Timeout de la inferencia en milisegundos.
-  REQUEST_TIMEOUT_MS: 15000,
+  REQUEST_TIMEOUT_MS: 60000,  // 60 segundos 
 };

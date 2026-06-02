@@ -21,9 +21,9 @@ export function CompareScreen({ modelId, onSelect }) {
             accuracy:    m.val_acc,
             sensitivity: m.recall,
             specificity: m.val_acc,
-            auc:         m.val_acc * 1.05 > 1 ? 1 : m.val_acc * 1.05,
-            latency_ms:  m.id === "mobilenetv3" ? 22 : m.id === "resnet50" ? 68 : 28,
-            model_mb:    m.id === "mobilenetv3" ? 22 : m.id === "resnet50" ? 98 : 20,
+            auc:         m.auc ?? (m.val_acc * 1.05 > 1 ? 1 : m.val_acc * 1.05),
+            latency_ms:  m.latency_ms ?? 100,
+            model_mb:    m.model_mb  ?? 50,
           },
         }));
         setModels(ms);

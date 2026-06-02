@@ -28,13 +28,12 @@ async function realPredict(file, opts = {}) {
   const modelId = opts.modelId || "resnet50";
   const fd = new FormData();
 
-  // Si recibimos un File real lo enviamos directo; si recibimos una muestra
-  // sintética (data URL), la convertimos a Blob.
+  // File real → envío directo. URL (http o data:) → fetch + Blob.
   if (file instanceof File) {
     fd.append("file", file, file.name);
-  } else if (file && file.src && file.src.startsWith("data:")) {
+  } else if (file && file.src) {
     const blob = await (await fetch(file.src)).blob();
-    fd.append("file", blob, file.name || "image.png");
+    fd.append("file", blob, file.name || "image.jpg");
   } else {
     throw new Error("INVALID_FILE");
   }

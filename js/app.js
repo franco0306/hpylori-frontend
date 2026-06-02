@@ -9,6 +9,7 @@ import { HeatmapScreen }    from "./components/HeatmapScreen.js";
 import { BatchScreen }      from "./components/BatchScreen.js";
 import { ModelsScreen }     from "./components/ModelsScreen.js";
 import { CompareScreen }    from "./components/CompareScreen.js";
+import { HistoryScreen }   from "./components/HistoryScreen.js";
 
 const React    = window.React;
 const ReactDOM = window.ReactDOM;
@@ -16,9 +17,15 @@ const { useState } = React;
 const h = React.createElement;
 
 function App() {
-  const [screen, setScreen]   = useState("single");
-  const [modelId, setModelId] = useState("resnet50");
+  const [screen, setScreen]     = useState("single");
+  const [modelId, setModelId]   = useState("resnet50");
+  const [heatmapResult, setHeatmapResult] = useState(null);
   const model = findModel(modelId);
+
+  const viewHeatmap = (result, file) => {
+    setHeatmapResult({ result, file });
+    setScreen("heatmap");
+  };
 
   const crumbs = ({
     dashboard: ["EndoScan AI", "Panel principal"],
@@ -34,18 +41,17 @@ function App() {
   const render = () => {
     switch (screen) {
       case "dashboard": return h(Dashboard,     { onNavigate: setScreen, model });
-      case "single":    return h(SingleScreen,  { model });
-      case "heatmap":   return h(HeatmapScreen, { model });
+      case "single":    return h(SingleScreen,  { model, onViewHeatmap: viewHeatmap });
+      case "heatmap":   return h(HeatmapScreen, { model, heatmapResult });
       case "batch":     return h(BatchScreen,   { model });
       case "models":    return h(ModelsScreen,  { modelId, onSelect: setModelId, onCompare: () => setScreen("compare") });
       case "compare":   return h(CompareScreen, { modelId, onSelect: setModelId });
+      case "history":   return h(HistoryScreen, { onViewHeatmap: viewHeatmap });
       default:
         return h("div", { className: "content" },
           h("div", { className: "page-header" },
             h("div", null, h("h1", { className: "page-title" },
-              screen === "history"  ? "Historial"
-              : screen === "settings" ? "Configuración"
-              : "Sección"))),
+              screen === "settings" ? "Configuración" : "Sección"))),
           h("div", { className: "card card-pad", style: { textAlign: "center", padding: 60 } },
             h("div", { className: "muted" }, "Sección en desarrollo.")),
         );

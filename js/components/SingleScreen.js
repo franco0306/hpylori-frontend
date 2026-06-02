@@ -2,12 +2,13 @@ import { I } from "../icons.js";
 import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { predict } from "../api.js";
+import { saveStudy } from "../history.js";
 
 const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
-export function SingleScreen({ model }) {
+export function SingleScreen({ model, onViewHeatmap }) {
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
   const [phase, setPhase] = useState("idle");
@@ -49,6 +50,7 @@ export function SingleScreen({ model }) {
       const payload = file._raw || file;
       const res = await predict(payload, { modelId: model.id, positive, heat, forceError: opts.forceError });
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
+      saveStudy(file, res); // fire-and-forget
     } catch (e) {
       clearInterval(iv); setPhase("error");
       setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
@@ -114,16 +116,27 @@ export function SingleScreen({ model }) {
               }),
             ),
             h("div", { style: { marginTop: 16 } },
-              h("div", { className: "section-title", style: { marginBottom: 8 } }, "O usa una muestra de prueba"),
-              h("div", { style: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 } },
-                ["pos1", "pos2", "neg1", "neg2"].map((k) =>
+              h("div", { className: "row between", style: { marginBottom: 8 } },
+                h("div", { className: "section-title", style: { marginBottom: 0 } }, "O usa una muestra de prueba"),
+                h("div", { className: "row", style: { gap: 6 } },
+                  h("span", { className: "badge badge-pos" }, "5 positivos"),
+                  h("span", { className: "badge badge-neg" }, "5 negativos"),
+                ),
+              ),
+              h("div", { style: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 } },
+                Object.entries(SAMPLES).map(([k, s]) =>
                   h("button", {
                     key: k, className: "btn btn-secondary",
                     onClick: () => useSample(k),
-                    style: { justifyContent: "flex-start", padding: 8, gap: 8 },
+                    style: { justifyContent: "flex-start", padding: "6px 8px", gap: 6, flexDirection: "column", alignItems: "flex-start" },
                   },
-                    h("img", { src: SAMPLES[k].src, style: { width: 28, height: 28, borderRadius: 4, objectFit: "cover" }, alt: "" }),
-                    h("span", { style: { fontSize: 12 } }, SAMPLES[k].name.replace(".jpg", "")),
+                    h("img", { src: s.src, style: { width: "100%", height: 56, borderRadius: 4, objectFit: "cover" }, alt: "" }),
+                    h("div", { style: { fontSize: 10, fontWeight: 600, lineHeight: 1.2, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+                      s.name.replace(".jpg", ""),
+                    ),
+                    h("div", { style: { fontSize: 10, fontWeight: 700, color: k.startsWith("pos") ? "var(--red-600)" : "var(--green-600)" } },
+                      s.label,
+                    ),
                   )
                 ),
               ),
@@ -252,7 +265,10 @@ export function SingleScreen({ model }) {
             ),
             h("div", { className: "row", style: { marginTop: 16, gap: 8 } },
               h("button", { className: "btn btn-secondary" }, h(I.dl, { size: 14 }), "Descargar informe PDF"),
-              h("button", { className: "btn btn-ghost" }, h(I.heat, { size: 14 }), "Ver Grad-CAM"),
+              h("button", {
+                className: "btn btn-ghost",
+                onClick: () => onViewHeatmap && onViewHeatmap(result, file),
+              }, h(I.heat, { size: 14 }), "Ver Grad-CAM"),
             ),
           ),
         ),

@@ -8,7 +8,7 @@ const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
-export function SingleScreen({ model, onViewHeatmap }) {
+export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
   const [phase, setPhase] = useState("idle");
@@ -48,7 +48,7 @@ export function SingleScreen({ model, onViewHeatmap }) {
       const heat = file._s ? SAMPLES[file._s].heat : null;
       // Si hay un File real lo enviamos; si es muestra, mandamos el objeto con `src`.
       const payload = file._raw || file;
-      const res = await predict(payload, { modelId: model.id, positive, heat, forceError: opts.forceError });
+      const res = await predict(payload, { modelId: model.id, positive, heat, threshold, forceError: opts.forceError });
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
       saveStudy(file, res); // fire-and-forget
     } catch (e) {

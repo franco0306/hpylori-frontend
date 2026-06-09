@@ -28,7 +28,7 @@ export function getStudies() {
   catch { return []; }
 }
 
-export async function saveStudy(file, result) {
+export async function saveStudy(file, result, paciente = "") {
   const studies  = getStudies();
   const thumb    = await makeThumbnail(file.src);
   const entry = {
@@ -36,6 +36,7 @@ export async function saveStudy(file, result) {
     timestamp:   new Date().toISOString(),
     fileName:    file.name || "imagen.jpg",
     thumbnail:   thumb,
+    paciente:    paciente.trim(),   // nombre o ID del paciente (puede ser vacío)
     clase:       result.clase,
     prob:        result.prob,
     latencia_ms: result.latencia_ms,

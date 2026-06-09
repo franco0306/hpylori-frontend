@@ -69,7 +69,7 @@ function App() {
     switch (screen) {
       case "dashboard": return h(Dashboard,      { onNavigate: setScreen, model });
       case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap, threshold: prefs.threshold });
-      case "heatmap":   return h(HeatmapScreen,  { model, heatmapResult });
+      case "heatmap":   return h(HeatmapScreen,  { model, heatmapResult, onNewAnalysis: () => setScreen("single") });
       case "batch":     return h(BatchScreen,    { model, threshold: prefs.threshold });
       case "models":    return h(ModelsScreen,   { modelId, onSelect: setModelId, onCompare: () => setScreen("compare") });
       case "compare":   return h(CompareScreen,  { modelId, onSelect: setModelId });

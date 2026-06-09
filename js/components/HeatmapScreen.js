@@ -83,7 +83,7 @@ async function buildPNG(sample, opacity, showHeat, caseKey) {
   a.click();
 }
 
-export function HeatmapScreen({ model, heatmapResult }) {
+export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
   const [k, setK]               = useState("pos1");
   const [op, setOp]             = useState(0.65);
   const [show, setShow]         = useState(true);
@@ -117,6 +117,10 @@ export function HeatmapScreen({ model, heatmapResult }) {
         h("div", { className: "page-sub" }, "HU-002 · Mapa de activación de " + model.name),
       ),
       h("div", { className: "row", style: { gap: 8 } },
+        onNewAnalysis && h("button", {
+          className: "btn btn-secondary",
+          onClick: onNewAnalysis,
+        }, h(I.refresh, { size: 14 }), "Nuevo análisis"),
         !isLive && h("select", { className: "select", value: k, onChange: (e) => setK(e.target.value) },
           Object.entries(SAMPLES).map(([key, s]) =>
             h("option", { key, value: key },

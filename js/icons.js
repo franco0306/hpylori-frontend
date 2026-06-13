@@ -61,4 +61,21 @@ export const I = {
     h("path",    { key: 1, d: "M5 7c2-3 7-3 9 0M19 17c-2 3-7 3-9 0M8 4v2M16 18v2M4 9h2M18 15h2" }),
     h("ellipse", { key: 2, cx: 12, cy: 12, rx: 5, ry: 7, transform: "rotate(-30 12 12)" }),
   ]}),
+  logout: (p) => h(Ico, { ...p, kids: [
+    h("path", { key: 1, d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" }),
+    h("path", { key: 2, d: "M16 17l5-5-5-5" }),
+    h("path", { key: 3, d: "M21 12H9" }),
+  ]}),
+  user: (p) => h(Ico, { ...p, kids: [
+    h("path",   { key: 1, d: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" }),
+    h("circle", { key: 2, cx: 12, cy: 7, r: 4 }),
+  ]}),
+  mail: (p) => h(Ico, { ...p, kids: [
+    h("rect", { key: 1, x: 2, y: 4, width: 20, height: 16, rx: 2 }),
+    h("path", { key: 2, d: "m22 6-10 7L2 6" }),
+  ]}),
+  lock: (p) => h(Ico, { ...p, kids: [
+    h("rect", { key: 1, x: 3, y: 11, width: 18, height: 11, rx: 2 }),
+    h("path", { key: 2, d: "M7 11V7a5 5 0 0 1 10 0v4" }),
+  ]}),
 };

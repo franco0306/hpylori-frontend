@@ -9,6 +9,13 @@ export const CONFIG = {
   // Endpoint que recibe la imagen y devuelve la predicción.
   PREDICT_PATH: "/predict",
 
+  // Endpoints de autenticación y datos de usuario.
+  REGISTER_PATH: "/auth/register",
+  LOGIN_PATH:    "/auth/login",
+  ME_PATH:       "/auth/me",
+  STUDIES_PATH:  "/studies",
+  SETTINGS_PATH: "/settings",
+
   // Si está en true, no llama al backend: usa datos simulados (modo demo).
   // Pónlo en false cuando tu API esté lista.
   USE_MOCK: false,

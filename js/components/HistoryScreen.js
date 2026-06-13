@@ -2,7 +2,7 @@ import { I } from "../icons.js";
 import { getStudies, deleteStudy, clearHistory } from "../history.js";
 
 const React = window.React;
-const { useState, useCallback } = React;
+const { useState, useCallback, useEffect } = React;
 const h = React.createElement;
 
 const SIN_PACIENTE   = "__sin_paciente__";
@@ -146,21 +146,28 @@ function PatientCard({ name, studies, selected, onSelect, onDelete }) {
 
 // ── HistoryScreen ─────────────────────────────────────────────────────────────
 export function HistoryScreen({ onViewHeatmap }) {
-  const [studies,      setStudies]      = useState(() => getStudies());
+  const [studies,      setStudies]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
   const [resultF,      setResultF]      = useState("Todos");
   const [dateF,        setDateF]        = useState(DATE_FILTERS[0]);
   const [viewMode,     setViewMode]     = useState("cronologico"); // "cronologico" | "paciente"
   const [confirmClear, setConfirmClear] = useState(false);
 
-  const refresh = useCallback(() => {
-    const fresh = getStudies();
+  useEffect(() => {
+    let mounted = true;
+    getStudies().then((data) => { if (mounted) { setStudies(data); setLoading(false); } });
+    return () => { mounted = false; };
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const fresh = await getStudies();
     setStudies(fresh);
     setSelected((sel) => sel ? fresh.find((s) => s.id === sel.id) || null : null);
   }, []);
 
-  const handleDelete = (id) => { deleteStudy(id); refresh(); };
-  const handleClear  = () => { clearHistory(); setStudies([]); setSelected(null); setConfirmClear(false); };
+  const handleDelete = async (id) => { await deleteStudy(id); refresh(); };
+  const handleClear  = async () => { await clearHistory(); setStudies([]); setSelected(null); setConfirmClear(false); };
 
   // Filtros comunes a ambas vistas
   const now = new Date();
@@ -240,7 +247,12 @@ export function HistoryScreen({ onViewHeatmap }) {
     ),
 
     // ── Cuerpo ────────────────────────────────────────────────────────────────
-    visible.length === 0
+    loading
+      ? h("div", { className: "card card-pad", style: { textAlign: "center", padding: 60 } },
+          h("div", { className: "spinner" }),
+          h("div", { className: "muted", style: { marginTop: 12 } }, "Cargando historial…"),
+        )
+    : visible.length === 0
       ? h("div", { className: "card card-pad", style: { textAlign: "center", padding: 60 } },
           h(I.history, { size: 32, style: { color: "var(--ink-300)", marginBottom: 12 } }),
           h("div", { style: { fontWeight: 600, color: "var(--ink-500)" } },

@@ -38,7 +38,7 @@ export function SettingsScreen({ prefs, onSave }) {
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Configuración"),
-        h("div", { className: "page-sub" }, "HU-008 · Preferencias de inferencia · guardado en localStorage"),
+        h("div", { className: "page-sub" }, "HU-008 · Preferencias de inferencia · guardado en tu cuenta"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
         h("button", { className: "btn btn-ghost", onClick: handleReset }, "Restablecer valores"),

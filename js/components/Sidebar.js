@@ -2,7 +2,15 @@ import { I } from "../icons.js";
 
 const h = window.React.createElement;
 
-export function Sidebar({ current, onNavigate, model }) {
+function initials(user) {
+  if (!user) return "?";
+  const src = user.full_name || user.email || "";
+  const parts = src.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
+
+export function Sidebar({ current, onNavigate, model, user, onLogout }) {
   const items = [
     { id: "dashboard", label: "Panel principal",            icon: I.dash,    group: "Inicio" },
     { id: "single",    label: "Análisis individual",        icon: I.upload,  group: "Diagnóstico", badge: "HU-001" },
@@ -40,11 +48,15 @@ export function Sidebar({ current, onNavigate, model }) {
       ]),
     ),
     h("div", { className: "sidebar-footer" },
-      h("div", { className: "avatar" }, "DR"),
-      h("div", { style: { flex: 1, minWidth: 0 } },
-        h("div", { className: "user-name" }, "Dr. R. Mendoza"),
-        h("div", { className: "user-role" }, "Gastroenterología · HU-12"),
+      h("div", { className: "avatar" }, initials(user)),
+      h("div", { style: { flex: 1, minWidth: 0, overflow: "hidden" } },
+        h("div", { className: "user-name", style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+          (user && (user.full_name || user.email)) || "Usuario"),
+        h("div", { className: "user-role", style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+          (user && user.email) || ""),
       ),
+      h("button", { className: "btn btn-ghost btn-icon", title: "Cerrar sesión", onClick: onLogout, style: { flexShrink: 0, color: "var(--ink-400)" } },
+        h(I.logout, { size: 16 })),
     ),
   );
 }

@@ -78,12 +78,8 @@ function MetricsTable({ models, picked, toggle }) {
 
 // ── Sección 2: análisis cruzado — misma imagen, todos los modelos ─────────────
 function MiniBar({ value, max, color }) {
-  return h("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
-    h("div", { style: { flex: 1, height: 5, background: "var(--ink-100)", borderRadius: 999, overflow: "hidden" } },
-      h("div", { style: { width: (value / max * 100) + "%", height: "100%", background: color, borderRadius: 999 } }),
-    ),
-    h("span", { className: "mono", style: { fontSize: 11, minWidth: 42, textAlign: "right", color: "var(--ink-700)" } },
-      (value * 100).toFixed(1) + "%"),
+  return h("div", { style: { height: 5, background: "var(--ink-100)", borderRadius: 999, overflow: "hidden" } },
+    h("div", { style: { width: (value / max * 100) + "%", height: "100%", background: color, borderRadius: 999 } }),
   );
 }
 
@@ -101,7 +97,7 @@ function ModelCard({ r, consensus, groundTruth }) {
   const confColor  = conf >= 0.85 ? "var(--green-600)" : conf >= 0.65 ? "var(--amber-600)" : "var(--red-600)";
   const agrees     = r.clase === consensus;
   const correct    = groundTruth !== null && ((isPos && groundTruth) || (!isPos && !groundTruth));
-  const accentColor = isPos ? "var(--red-500)" : "var(--green-600)";
+  const accentColor = isPos ? "#b91c1c" : "#15803d";
   const mt         = modelMeta?.metrics;
 
   return h("div", { style: {
@@ -137,7 +133,7 @@ function ModelCard({ r, consensus, groundTruth }) {
       ),
       // Barra de probabilidad
       h("div", { style: { height: 6, background: "var(--ink-100)", borderRadius: 999, marginBottom: 10, overflow: "hidden" } },
-        h("div", { style: { width: (r.prob * 100) + "%", height: "100%", background: accentColor, borderRadius: 999 } }),
+        h("div", { style: { width: (r.prob * 100) + "%", height: "100%", background: isPos ? "#b91c1c" : "#15803d", borderRadius: 999 } }),
       ),
       h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 10 } },
         h("span", { style: { color: "var(--ink-500)" } },

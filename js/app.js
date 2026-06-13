@@ -11,48 +11,81 @@ import { ModelsScreen }        from "./components/ModelsScreen.js";
 import { CompareScreen }       from "./components/CompareScreen.js";
 import { HistoryScreen }       from "./components/HistoryScreen.js";
 import { SettingsScreen }      from "./components/SettingsScreen.js";
+import { LoginScreen }         from "./components/LoginScreen.js";
+import { RegisterScreen }      from "./components/RegisterScreen.js";
+import { CONFIG }              from "./config.js";
+import { isAuthenticated, getUser, logout, authFetch } from "./auth.js";
 
 const React    = window.React;
 const ReactDOM = window.ReactDOM;
-const { useState } = React;
+const { useState, useEffect } = React;
 const h = React.createElement;
 
-// ── Preferencias persistentes ────────────────────────────────────────────────
-const PREFS_KEY      = "endoscan_settings";
-const DEFAULT_PREFS  = { modelId: "resnet50", threshold: 0.5 };
-
-function loadPrefs() {
-  try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") };
-  } catch { return DEFAULT_PREFS; }
-}
-
-function persistPrefs(prefs) {
-  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-}
+const DEFAULT_PREFS = { modelId: "resnet50", threshold: 0.5 };
 
 // ── App ──────────────────────────────────────────────────────────────────────
 function App() {
-  // Preferencias cargadas desde localStorage al montar
-  const [prefs, setPrefs] = useState(() => loadPrefs());
+  const [authed, setAuthed]     = useState(() => isAuthenticated());
+  const [authView, setAuthView] = useState("login"); // "login" | "register"
+  const [user, setUser]         = useState(() => getUser());
 
-  // modelId puede cambiarse en runtime (Topbar) sin sobrescribir el guardado
-  const [modelId, setModelId] = useState(prefs.modelId);
+  const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
+  const [modelId, setModelId]             = useState(DEFAULT_PREFS.modelId);
   const [heatmapResult, setHeatmapResult] = useState(null);
-  const [screen, setScreen]   = useState("single");
+  const [screen, setScreen]               = useState("single");
   const model = findModel(modelId);
+
+  // Carga las preferencias guardadas al autenticarse
+  useEffect(() => {
+    if (!authed) return;
+    let mounted = true;
+    authFetch(CONFIG.SETTINGS_PATH).then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!mounted) return;
+      setPrefs({ modelId: data.modelId, threshold: data.threshold });
+      setModelId(data.modelId);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [authed]);
 
   const viewHeatmap = (result, file) => {
     setHeatmapResult({ result, file });
     setScreen("heatmap");
   };
 
-  // Guarda preferencias, actualiza estado y sincroniza el modelo activo
-  const handleSavePrefs = (newPrefs) => {
-    persistPrefs(newPrefs);
+  // Actualiza preferencias en estado y las guarda en el backend
+  const handleSavePrefs = async (newPrefs) => {
     setPrefs(newPrefs);
     setModelId(newPrefs.modelId);
+    try {
+      await authFetch(CONFIG.SETTINGS_PATH, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPrefs),
+      });
+    } catch { /* UI ya actualizada de forma optimista */ }
   };
+
+  const handleAuthSuccess = (loggedInUser) => {
+    setUser(loggedInUser);
+    setAuthed(true);
+    setScreen("single");
+  };
+
+  const handleLogout = () => {
+    logout();
+    setAuthed(false);
+    setUser(null);
+    setPrefs(DEFAULT_PREFS);
+    setModelId(DEFAULT_PREFS.modelId);
+  };
+
+  if (!authed) {
+    return authView === "register"
+      ? h(RegisterScreen, { onSuccess: handleAuthSuccess, onGoToLogin: () => setAuthView("login") })
+      : h(LoginScreen,    { onSuccess: handleAuthSuccess, onGoToRegister: () => setAuthView("register") });
+  }
 
   const crumbs = ({
     dashboard: ["EndoScan AI", "Panel principal"],
@@ -67,7 +100,7 @@ function App() {
 
   const render = () => {
     switch (screen) {
-      case "dashboard": return h(Dashboard,      { onNavigate: setScreen, model });
+      case "dashboard": return h(Dashboard,      { onNavigate: setScreen, model, user });
       case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap, threshold: prefs.threshold });
       case "heatmap":   return h(HeatmapScreen,  { model, heatmapResult, onNewAnalysis: () => setScreen("single") });
       case "batch":     return h(BatchScreen,    { model, threshold: prefs.threshold });
@@ -86,7 +119,7 @@ function App() {
   };
 
   return h("div", { className: "app" },
-    h(Sidebar, { current: screen, onNavigate: setScreen, model }),
+    h(Sidebar, { current: screen, onNavigate: setScreen, model, user, onLogout: handleLogout }),
     h("div", { className: "main" },
       h(Topbar, {
         crumbs, model,

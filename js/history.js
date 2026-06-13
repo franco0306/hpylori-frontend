@@ -1,9 +1,9 @@
-// Persistencia de estudios en localStorage.
+// Persistencia de estudios vía backend (Postgres/Supabase).
 // Cada entrada guarda metadatos + thumbnail pequeño (96×72 JPEG).
 // No almacena heatmap_b64 (demasiado grande).
 
-const KEY = "endoscan_history";
-const MAX  = 200;
+import { CONFIG } from "./config.js";
+import { authFetch } from "./auth.js";
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -23,42 +23,48 @@ function makeThumbnail(src) {
   });
 }
 
-export function getStudies() {
-  try { return JSON.parse(localStorage.getItem(KEY) || "[]"); }
-  catch { return []; }
+export async function getStudies() {
+  try {
+    const res = await authFetch(CONFIG.STUDIES_PATH);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
 }
 
 export async function saveStudy(file, result, paciente = "") {
-  const studies  = getStudies();
-  const thumb    = await makeThumbnail(file.src);
-  const entry = {
-    id:          uid(),
-    timestamp:   new Date().toISOString(),
+  const thumb = await makeThumbnail(file.src);
+  const body = {
     fileName:    file.name || "imagen.jpg",
     thumbnail:   thumb,
-    paciente:    paciente.trim(),   // nombre o ID del paciente (puede ser vacío)
+    paciente:    (paciente || "").trim(),   // nombre o ID del paciente (puede ser vacío)
     clase:       result.clase,
     prob:        result.prob,
     latencia_ms: result.latencia_ms,
     modelo:      result.modelo  || "—",
     modelId:     result.modelId || "resnet50",
   };
-  studies.unshift(entry);
-  if (studies.length > MAX) studies.length = MAX;
+
   try {
-    localStorage.setItem(KEY, JSON.stringify(studies));
+    const res = await authFetch(CONFIG.STUDIES_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("HTTP_" + res.status);
+    return await res.json();
   } catch {
-    // cuota llena — recorta a la mitad y reintenta
-    studies.splice(Math.floor(MAX / 2));
-    try { localStorage.setItem(KEY, JSON.stringify(studies)); } catch { /* ignore */ }
+    return { id: uid(), timestamp: new Date().toISOString(), ...body };
   }
-  return entry;
 }
 
-export function deleteStudy(id) {
-  localStorage.setItem(KEY, JSON.stringify(getStudies().filter((s) => s.id !== id)));
+export async function deleteStudy(id) {
+  try { await authFetch(CONFIG.STUDIES_PATH + "/" + id, { method: "DELETE" }); }
+  catch { /* ignore */ }
 }
 
-export function clearHistory() {
-  localStorage.removeItem(KEY);
+export async function clearHistory() {
+  try { await authFetch(CONFIG.STUDIES_PATH, { method: "DELETE" }); }
+  catch { /* ignore */ }
 }

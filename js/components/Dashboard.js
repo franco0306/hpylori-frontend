@@ -2,7 +2,7 @@ import { I } from "../icons.js";
 import { getStudies } from "../history.js";
 
 const React = window.React;
-const { useMemo } = React;
+const { useState, useEffect, useMemo } = React;
 const h = React.createElement;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,8 +111,15 @@ function KpiCard({ label, value, sub, subColor, barPct, barColor, icon }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-export function Dashboard({ onNavigate, model }) {
-  const studies = useMemo(() => getStudies(), []);
+export function Dashboard({ onNavigate, model, user }) {
+  const [studies, setStudies] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    getStudies().then((data) => { if (mounted) setStudies(data); });
+    return () => { mounted = false; };
+  }, []);
+
   const stats   = useMemo(() => computeStats(studies), [studies]);
   const recent  = useMemo(() => studies.slice(0, 6), [studies]);
 
@@ -131,7 +138,7 @@ export function Dashboard({ onNavigate, model }) {
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" },
-          getGreeting() + ", Dr. R. Mendoza"),
+          getGreeting() + ", " + ((user && (user.full_name || user.email)) || "")),
         h("div", { className: "page-sub" },
           getFecha() + " · Modelo activo: ",
           h("strong", null, model.name + " " + model.version),

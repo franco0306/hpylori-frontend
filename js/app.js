@@ -11,6 +11,7 @@ import { ModelsScreen }        from "./components/ModelsScreen.js";
 import { CompareScreen }       from "./components/CompareScreen.js";
 import { HistoryScreen }       from "./components/HistoryScreen.js";
 import { SettingsScreen }      from "./components/SettingsScreen.js";
+import { HelpScreen }         from "./components/HelpScreen.js";
 import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
 import { CONFIG }              from "./config.js";
@@ -96,6 +97,7 @@ function App() {
     compare:   ["EndoScan AI", "IA", "Comparativa de modelos"],
     history:   ["EndoScan AI", "Registros", "Historial"],
     settings:  ["EndoScan AI", "Sistema", "Configuración"],
+    help:      ["EndoScan AI", "Sistema", "Manual de usuario"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
@@ -108,6 +110,7 @@ function App() {
       case "compare":   return h(CompareScreen,  { modelId, onSelect: setModelId });
       case "history":   return h(HistoryScreen,  { onViewHeatmap: viewHeatmap });
       case "settings":  return h(SettingsScreen, { prefs, onSave: handleSavePrefs });
+      case "help":      return h(HelpScreen,     {});
       default:
         return h("div", { className: "content" },
           h("div", { className: "page-header" },

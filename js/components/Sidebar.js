@@ -20,6 +20,7 @@ export function Sidebar({ current, onNavigate, model, user, onLogout }) {
     { id: "compare",   label: "Comparativa de modelos",     icon: I.bars,    group: "IA" },
     { id: "history",   label: "Historial de estudios",      icon: I.history, group: "Registros" },
     { id: "settings",  label: "Configuración",              icon: I.cog,     group: "Sistema" },
+    { id: "help",      label: "Manual de usuario",          icon: I.book,    group: "Sistema" },
   ];
   const groups = [...new Set(items.map((i) => i.group))];
 

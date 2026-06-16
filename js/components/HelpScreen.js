@@ -223,7 +223,7 @@ export function HelpScreen() {
           h(Section, { title: "Interpretación del resultado" },
             h("div", { style: { fontSize: 13, lineHeight: 1.8 } },
               h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Diagnóstico:"), " "H. pylori Positivo" o "H. pylori Negativo""),
+                h("strong", null, "Diagnóstico:"), ' "H. pylori Positivo" o "H. pylori Negativo"'),
               h("p", { style: { margin: "0 0 8px" } },
                 h("strong", null, "Probabilidad:"), " 0–100 % de que la imagen sea positiva"),
               h("p", { style: { margin: "0 0 8px" } },

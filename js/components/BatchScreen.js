@@ -6,7 +6,7 @@ const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
-export function BatchScreen({ model }) {
+export function BatchScreen({ model, threshold }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -73,6 +73,9 @@ export function BatchScreen({ model }) {
         }
 
         fd.append("model_id", model.id);
+        if (threshold !== undefined && threshold !== null) {
+          fd.append("threshold", String(threshold));
+        }
 
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);

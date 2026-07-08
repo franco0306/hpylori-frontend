@@ -1,9 +1,10 @@
 import { I } from "../icons.js";
-import { MODELS } from "../models.js";
+import { MODELS, findModel } from "../models.js";
 
 const h = window.React.createElement;
 
 export function ModelsScreen({ modelId, onSelect, onCompare }) {
+  const resnet50 = findModel("resnet50");
   return h("div", { className: "content" },
     h("div", { className: "page-header" },
       h("div", null,
@@ -47,7 +48,7 @@ export function ModelsScreen({ modelId, onSelect, onCompare }) {
       h(I.info, { size: 16 }),
       h("div", null,
         h("strong", null, "¿Cómo escoger? "),
-        "ResNet50 ofrece el mejor recall (87.33%) y es el modelo recomendado para diagnóstico clínico. GoogLeNet es el más ligero de los nuevos (22 MB, 55 ms). DenseNet121 tiene el mejor accuracy entre los 3 nuevos (86.91%). VGG16 mostró entrenamiento inestable y la menor sensibilidad (63.88%) — no recomendado para diagnóstico primario.",
+        "ResNet50 ofrece el mejor recall (" + (resnet50.metrics.sensitivity * 100).toFixed(2) + "%) y es el modelo recomendado para diagnóstico clínico. GoogLeNet es el más ligero de los nuevos (22 MB, 55 ms). DenseNet121 tiene el mejor accuracy entre los 3 nuevos (86.91%). VGG16 mostró entrenamiento inestable y la menor sensibilidad (63.88%) — no recomendado para diagnóstico primario.",
       ),
     ),
   );

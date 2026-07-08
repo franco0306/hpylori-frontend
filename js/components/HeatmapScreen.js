@@ -5,6 +5,16 @@ const React = window.React;
 const { useState } = React;
 const h = React.createElement;
 
+// Capa objetivo de Grad-CAM por arquitectura (debe reflejar core/loaders.py::get_target_layer).
+const TARGET_LAYER = {
+  resnet50:       "layer4",
+  mobilenetv3:    "features[-1]",
+  efficientnetb0: "features[-1]",
+  densenet121:    "features.denseblock4",
+  googlenet:      "inception5b",
+  vgg16:          "features",
+};
+
 const LEGEND_STOPS = [
   { pct: 0,   color: "#2347C5", label: "0.0" },
   { pct: 33,  color: "#16A34A", label: "0.3" },
@@ -155,7 +165,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
         h("div", { className: "card-head" },
           h("div", null,
             h("h3", { className: "card-title" }, "Grad-CAM"),
-            h("div", { className: "card-sub" }, "Capa layer4.bn3 · " + model.name),
+            h("div", { className: "card-sub" }, "Capa " + (TARGET_LAYER[model.id] || "layer4") + " · " + model.name),
           ),
           h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
             positive ? "POSITIVO" : "NEGATIVO"),

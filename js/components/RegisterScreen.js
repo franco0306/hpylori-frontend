@@ -6,6 +6,9 @@ const React = window.React;
 const { useState } = React;
 const h = React.createElement;
 
+// Solo letras (con acentos/ñ), espacios, guiones y apóstrofes. Sin números ni puntos.
+const FULL_NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$/;
+
 export function RegisterScreen({ onSuccess, onGoToLogin }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail]       = useState("");
@@ -18,12 +21,17 @@ export function RegisterScreen({ onSuccess, onGoToLogin }) {
     e.preventDefault();
     setError(null);
 
+    const trimmedName = fullName.trim();
+    if (trimmedName && !FULL_NAME_RE.test(trimmedName)) {
+      setError("El nombre completo solo puede contener letras y espacios (sin números ni símbolos como puntos).");
+      return;
+    }
     if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
     if (password.length < 6)  { setError("La contraseña debe tener al menos 6 caracteres."); return; }
 
     setLoading(true);
     try {
-      const user = await register(email, password, fullName);
+      const user = await register(email, password, trimmedName);
       onSuccess(user);
     } catch (err) {
       setError(err.message || "No se pudo crear la cuenta.");
@@ -56,8 +64,10 @@ export function RegisterScreen({ onSuccess, onGoToLogin }) {
             h("div", { className: "input-icon-wrap" },
               h("span", { className: "input-icon" }, h(I.user, { size: 15 })),
               h("input", { className: "input", type: "text",
-                value: fullName, onChange: (e) => setFullName(e.target.value), placeholder: "Dr. R. Mendoza" }),
+                value: fullName, onChange: (e) => setFullName(e.target.value), placeholder: "Ricardo Mendoza" }),
             ),
+            h("div", { className: "muted", style: { fontSize: 11, marginTop: 4 } },
+              "Solo letras y espacios (sin números ni puntos)."),
           ),
           h("div", null,
             h("label", { className: "auth-label" }, "Correo electrónico"),

@@ -32,7 +32,8 @@ function errorMessage(data) {
     const first = detail[0];
     if (first && first.loc && first.loc.includes("email")) return "El correo electrónico no es válido.";
     if (first && first.loc && first.loc.includes("password")) return "La contraseña no es válida.";
-    return (first && first.msg) || "Datos inválidos.";
+    const msg = (first && first.msg) || "Datos inválidos.";
+    return msg.replace(/^Value error,\s*/i, "");
   }
   return "Error de autenticación";
 }

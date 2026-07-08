@@ -1,17 +1,44 @@
 import { I } from "../icons.js";
 import { SAMPLES } from "../samples.js";
+import { CONFIG } from "../config.js";
 
 const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
-const API_URL = "https://franco0306-hpylori-detection.hf.space";
-
 export function BatchScreen({ model }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [rejected, setRejected] = useState(0);
   const inputRef = useRef(null);
+
+  const acceptFiles = (fileList) => {
+    setRejected(0);
+    const files = Array.from(fileList).slice(0, 50);
+    const valid = [];
+    let rejectedCount = 0;
+
+    for (const f of files) {
+      const validFormat = CONFIG.ACCEPTED_MIME.includes(f.type);
+      const validSize = f.size <= CONFIG.MAX_FILE_MB * 1024 * 1024;
+      if (!validFormat || !validSize) { rejectedCount++; continue; }
+      valid.push(f);
+    }
+
+    if (rejectedCount) setRejected(rejectedCount);
+    if (!valid.length) return;
+
+    setItems(valid.map((f, i) => ({
+      id: "ITM-" + (1000 + i),
+      name: f.name,
+      size: f.size,
+      status: "queued",
+      thumb: URL.createObjectURL(f),
+      file: f,
+      _demo: false,
+    })));
+  };
 
   const loadDemo = () => {
     const ks = ["pos1", "neg1", "pos2", "neg2", "pos1", "neg1", "pos2", "neg2", "pos1", "neg1", "pos2", "neg2"];
@@ -47,11 +74,20 @@ export function BatchScreen({ model }) {
 
         fd.append("model_id", model.id);
 
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
+
         const start = performance.now();
-        const res = await fetch(API_URL + "/predict", {
-          method: "POST",
-          body: fd,
-        });
+        let res;
+        try {
+          res = await fetch(CONFIG.API_BASE_URL + CONFIG.PREDICT_PATH, {
+            method: "POST",
+            body: fd,
+            signal: ctrl.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
 
         if (!res.ok) throw new Error("HTTP_" + res.status);
         const data = await res.json();
@@ -63,8 +99,9 @@ export function BatchScreen({ model }) {
             : p
         ));
       } catch (e) {
+        const errorMsg = e.name === "AbortError" ? "API_TIMEOUT" : (e.message || "Error desconocido");
         setItems((prev) => prev.map((p) =>
-          p.id === it.id ? { ...p, status: "done", clase: "Error", prob: 0, latencia: 0 } : p
+          p.id === it.id ? { ...p, status: "done", clase: "Error", prob: 0, latencia: 0, errorMsg } : p
         ));
       }
     }
@@ -134,6 +171,11 @@ export function BatchScreen({ model }) {
         h("div", {
           "data-dropzone": true, className: "dropzone",
           onClick: () => inputRef.current && inputRef.current.click(),
+          onDragOver: (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; },
+          onDrop: (e) => {
+            e.preventDefault(); e.stopPropagation();
+            acceptFiles(e.dataTransfer.files || []);
+          },
         },
           h("div", { className: "dropzone-icon" }, h(I.layers, { size: 22 })),
           h("div", { className: "dropzone-title" }, "Arrastra hasta 50 imágenes aquí"),
@@ -142,19 +184,16 @@ export function BatchScreen({ model }) {
           h("input", {
             ref: inputRef, type: "file", multiple: true,
             accept: "image/jpeg,image/png", hidden: true,
-            onChange: (e) => {
-              const files = Array.from(e.target.files).slice(0, 50);
-              setItems(files.map((f, i) => ({
-                id: "ITM-" + (1000 + i),
-                name: f.name,
-                size: f.size,
-                status: "queued",
-                thumb: URL.createObjectURL(f),
-                file: f,
-                _demo: false,
-              })));
-            },
+            onChange: (e) => acceptFiles(e.target.files || []),
           }),
+          rejected > 0 && h("div", { className: "alert alert-error", style: { marginTop: 12, textAlign: "left" } },
+            h(I.alert, { size: 16 }),
+            h("div", null,
+              h("strong", null, "Formato inválido. "),
+              rejected + " archivo" + (rejected === 1 ? "" : "s") + " " + (rejected === 1 ? "fue rechazado" : "fueron rechazados") +
+                " — solo se admiten imágenes JPG o PNG de hasta " + CONFIG.MAX_FILE_MB + " MB.",
+            ),
+          ),
           h("button", {
             className: "btn btn-ghost", style: { marginTop: 12 },
             onClick: (e) => { e.stopPropagation(); loadDemo(); },
@@ -211,7 +250,7 @@ export function BatchScreen({ model }) {
             h("td", null,
               it.clase === "Positivo" && h("span", { className: "badge badge-pos" }, "POSITIVO"),
               it.clase === "Negativo" && h("span", { className: "badge badge-neg" }, "NEGATIVO"),
-              it.clase === "Error"    && h("span", { className: "badge badge-warn" }, "ERROR"),
+              it.clase === "Error"    && h("span", { className: "badge badge-warn", title: it.errorMsg || "" }, "ERROR"),
               !it.clase && h("span", { className: "muted" }, "—"),
             ),
             h("td", { className: "mono" },

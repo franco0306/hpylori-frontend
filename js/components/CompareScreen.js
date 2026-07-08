@@ -83,12 +83,20 @@ function MiniBar({ value, max, color }) {
   );
 }
 
-function ModelCard({ r, consensus, groundTruth }) {
+function ModelCard({ r, consensus, groundTruth, onRetry }) {
   if (r.error) return h("div", { style: {
     border: "1px solid var(--ink-200)", borderRadius: 10, padding: 14,
-    display: "flex", alignItems: "center", justifyContent: "center",
-    color: "var(--ink-400)", fontSize: 12, minHeight: 120,
-  }}, r.name + " — error de inferencia");
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    gap: 8, color: "var(--ink-400)", fontSize: 12, minHeight: 120,
+  }},
+    h("div", { style: { textAlign: "center" } },
+      h("div", null, r.name + " — error de inferencia"),
+      r.errorMsg && h("div", { style: { fontSize: 10, marginTop: 4, color: "var(--red-600)" } }, r.errorMsg),
+    ),
+    onRetry && h("button", {
+      className: "btn btn-secondary", style: { padding: "4px 10px", fontSize: 11 },
+      onClick: () => onRetry(r.modelId),
+    }, "Reintentar"));
 
   const modelMeta  = MODELS.find((m) => m.id === r.modelId);
   const isPos      = r.clase === "Positivo";
@@ -201,21 +209,33 @@ function CrossAnalysis() {
   const sample     = SAMPLES[imgKey];
   const groundTruth = imgKey.startsWith("pos");
 
+  // Se ejecuta secuencialmente (no en paralelo): 6 inferencias simultáneas
+  // saturan la instancia única del backend y provocan timeouts/errores de inferencia.
+  const runOne = async (m) => {
+    try {
+      const res = await predict(sample, { modelId: m.id, positive: groundTruth, heat: sample.heat });
+      return { modelId: m.id, name: m.name, ...res, error: false };
+    } catch (e) {
+      return { modelId: m.id, name: m.name, clase: null, prob: null, latencia_ms: null, error: true, errorMsg: e.message || "Error desconocido" };
+    }
+  };
+
   const runAll = async () => {
     setRunning(true); setResults(null); setProgress(0);
-    const tasks = MODELS.map(async (m) => {
-      try {
-        const res = await predict(sample, { modelId: m.id, positive: groundTruth, heat: sample.heat });
-        setProgress((p) => p + 1);
-        return { modelId: m.id, name: m.name, ...res, error: false };
-      } catch {
-        setProgress((p) => p + 1);
-        return { modelId: m.id, name: m.name, clase: null, prob: null, latencia_ms: null, error: true };
-      }
-    });
-    const all = await Promise.all(tasks);
+    const all = [];
+    for (const m of MODELS) {
+      all.push(await runOne(m));
+      setProgress((p) => p + 1);
+    }
     setResults(all);
     setRunning(false);
+  };
+
+  const retryOne = async (modelId) => {
+    const m = MODELS.find((mm) => mm.id === modelId);
+    if (!m) return;
+    const updated = await runOne(m);
+    setResults((prev) => prev.map((r) => r.modelId === modelId ? updated : r));
   };
 
   const valid         = results ? results.filter((r) => !r.error) : [];
@@ -303,7 +323,7 @@ function CrossAnalysis() {
 
         // Grid de tarjetas por modelo
         h("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 } },
-          ...results.map((r) => h(ModelCard, { key: r.modelId, r, consensus, groundTruth })),
+          ...results.map((r) => h(ModelCard, { key: r.modelId, r, consensus, groundTruth, onRetry: retryOne })),
         ),
 
         h("div", { className: "alert alert-info", style: { marginTop: 16 } },

@@ -27,5 +27,7 @@ export const CONFIG = {
   ACCEPTED_MIME: ["image/jpeg", "image/png", "image/jpg"],
 
   // Timeout de la inferencia en milisegundos.
-  REQUEST_TIMEOUT_MS: 60000,  // 60 segundos 
+  // 90s para dar margen al "cold start" del backend (Hugging Face Space en
+  // reposo) cuando la comparativa de 6 modelos hace la primera petición.
+  REQUEST_TIMEOUT_MS: 90000,  // 90 segundos
 };

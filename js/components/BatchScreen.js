@@ -111,13 +111,19 @@ export function BatchScreen({ model, threshold }) {
     setRunning(false);
   };
 
+  // Encierra en comillas los campos con coma, comilla o salto de línea (CSV RFC 4180).
+  const csvField = (v) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+
   const exportCSV = () => {
     const rows = [["id", "archivo", "modelo", "clase", "prob", "latencia_ms", "estado"]];
     items.forEach((i) => rows.push([
       i.id, i.name, model.name + "_" + model.version,
       i.clase || "", i.prob || "", i.latencia || "", i.status,
     ]));
-    const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" });
+    const blob = new Blob([rows.map((r) => r.map(csvField).join(",")).join("\n")], { type: "text/csv" });
     const u = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = u; a.download = "lote.csv"; a.click();

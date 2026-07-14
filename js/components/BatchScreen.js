@@ -203,7 +203,6 @@ export function BatchScreen({ model, threshold }) {
             accept: "image/jpeg,image/png", hidden: true,
             onChange: (e) => acceptFiles(e.target.files || []),
           }),
-          ),
           h("button", {
             className: "btn btn-ghost", style: { marginTop: 12 },
             onClick: (e) => { e.stopPropagation(); loadDemo(); },

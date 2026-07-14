@@ -175,6 +175,14 @@ export function BatchScreen({ model, threshold }) {
         h("div", { className: "kpi-label" }, "Avance"),
         h("div", { className: "kpi-value" }, pct + "%")),
     ),
+    rejected > 0 && h("div", { className: "alert alert-error", style: { marginBottom: 20 } },
+      h(I.alert, { size: 16 }),
+      h("div", null,
+        h("strong", null, "Formato inválido. "),
+        rejected + " archivo" + (rejected === 1 ? "" : "s") + " " + (rejected === 1 ? "fue rechazado" : "fueron rechazados") +
+          " — solo se admiten imágenes JPG o PNG de hasta " + CONFIG.MAX_FILE_MB + " MB.",
+      ),
+    ),
     !total && h("div", { className: "card" },
       h("div", { style: { padding: 20 } },
         h("div", {
@@ -195,13 +203,6 @@ export function BatchScreen({ model, threshold }) {
             accept: "image/jpeg,image/png", hidden: true,
             onChange: (e) => acceptFiles(e.target.files || []),
           }),
-          rejected > 0 && h("div", { className: "alert alert-error", style: { marginTop: 12, textAlign: "left" } },
-            h(I.alert, { size: 16 }),
-            h("div", null,
-              h("strong", null, "Formato inválido. "),
-              rejected + " archivo" + (rejected === 1 ? "" : "s") + " " + (rejected === 1 ? "fue rechazado" : "fueron rechazados") +
-                " — solo se admiten imágenes JPG o PNG de hasta " + CONFIG.MAX_FILE_MB + " MB.",
-            ),
           ),
           h("button", {
             className: "btn btn-ghost", style: { marginTop: 12 },

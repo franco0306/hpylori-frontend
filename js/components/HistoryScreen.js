@@ -20,12 +20,12 @@ function fmtDate(iso) {
     + " " + d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
 }
 
-function fmtProb(p, clase) {
-  return ((clase === "Positivo" ? p : 1 - p) * 100).toFixed(1) + "%";
+function fmtProb(p) {
+  return (p * 100).toFixed(1) + "%";
 }
 
-function ConfBar({ prob, clase }) {
-  const val   = clase === "Positivo" ? prob : 1 - prob;
+function ConfBar({ prob }) {
+  const val   = prob;
   const color = val >= 0.85 ? "var(--green-600)" : val >= 0.65 ? "var(--amber-600)" : "var(--red-600)";
   return h("div", { style: { height: 4, background: "var(--ink-100)", borderRadius: 999, width: "100%", marginTop: 4 } },
     h("div", { style: { width: (val * 100) + "%", height: "100%", background: color, borderRadius: 999 } }),
@@ -74,7 +74,7 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
       ),
       h("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 3 } },
         h("span", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } }, s.modelo + " · " + s.latencia_ms + " ms"),
-        h("span", { className: "mono", style: { fontSize: 12, fontWeight: 600, color: isPos ? "var(--red-600)" : "var(--green-600)" } }, fmtProb(s.prob, s.clase)),
+        h("span", { className: "mono", style: { fontSize: 12, fontWeight: 600, color: isPos ? "var(--red-600)" : "var(--green-600)" } }, fmtProb(s.prob)),
       ),
       h("div", { style: { fontSize: 11, color: "var(--ink-400)", marginTop: 2 } }, fmtDate(s.timestamp)),
     ),
@@ -319,14 +319,14 @@ export function HistoryScreen({ onViewHeatmap }) {
             h("div", { className: "metrics", style: { marginBottom: 12 } },
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Probabilidad"),
-                h("div", { className: "metric-value" }, fmtProb(selected.prob, selected.clase)),
+                h("div", { className: "metric-value" }, fmtProb(selected.prob)),
               ),
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Latencia"),
                 h("div", { className: "metric-value" }, selected.latencia_ms, h("small", null, " ms")),
               ),
             ),
-            h(ConfBar, { prob: selected.prob, clase: selected.clase }),
+            h(ConfBar, { prob: selected.prob }),
 
             // Metadatos
             h("div", { style: { fontSize: 12.5, color: "var(--ink-700)", display: "flex", flexDirection: "column", gap: 6, marginTop: 12 } },

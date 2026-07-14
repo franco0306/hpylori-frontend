@@ -68,8 +68,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
 
     const fecha     = new Date().toLocaleString("es-PE", { dateStyle: "full", timeStyle: "short" });
     const isPos     = result.clase === "Positivo";
-    const probPct   = ((isPos ? result.prob : 1 - result.prob) * 100).toFixed(1);
-    const conf      = Math.max(result.prob, 1 - result.prob);
+    const probPct   = (result.prob * 100).toFixed(1);
+    const conf      = result.prob;
     const confLabel = conf >= 0.85 ? "Alta" : conf >= 0.65 ? "Media" : "Baja";
     const colorResult = isPos ? "#dc2626" : "#16a34a";
     const pacienteRow = patientName.trim()
@@ -232,8 +232,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   };
 
   const positive = result && result.clase === "Positivo";
-  const probShown = result ? (positive ? result.prob : 1 - result.prob) : 0;
-  const conf = result ? Math.max(result.prob, 1 - result.prob) : 0;
+  const probShown = result ? result.prob : 0;
+  const conf = result ? result.prob : 0;
   const confTier = conf >= 0.85
     ? { l: "alta",  c: "var(--green-600)" }
     : conf >= 0.65

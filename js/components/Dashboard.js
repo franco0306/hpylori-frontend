@@ -250,7 +250,7 @@ export function Dashboard({ onNavigate, model, user }) {
                     h("span", { className: "badge " + (isPos ? "badge-pos" : "badge-neg") },
                       isPos ? "POS" : "NEG"),
                     h("div", { style: { fontSize: 11, fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, marginTop: 3, color: isPos ? "#DC2626" : "#16A34A" } },
-                      ((isPos ? s.prob : 1 - s.prob) * 100).toFixed(1) + "%"),
+                      (s.prob * 100).toFixed(1) + "%"),
                   ),
                 );
               }),

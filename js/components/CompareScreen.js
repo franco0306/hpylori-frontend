@@ -100,7 +100,7 @@ function ModelCard({ r, consensus, groundTruth, onRetry }) {
 
   const modelMeta  = MODELS.find((m) => m.id === r.modelId);
   const isPos      = r.clase === "Positivo";
-  const conf       = Math.max(r.prob, 1 - r.prob);
+  const conf       = r.prob;
   const confLbl    = conf >= 0.85 ? "Alta" : conf >= 0.65 ? "Media" : "Baja";
   const confColor  = conf >= 0.85 ? "var(--green-600)" : conf >= 0.65 ? "var(--amber-600)" : "var(--red-600)";
   const agrees     = r.clase === consensus;
@@ -136,7 +136,7 @@ function ModelCard({ r, consensus, groundTruth, onRetry }) {
         h("div", { style: { fontWeight: 800, fontSize: 14, color: accentColor } }, r.clase),
         h("div", { style: { textAlign: "right" } },
           h("div", { className: "mono", style: { fontWeight: 700, fontSize: 13 } }, (r.prob * 100).toFixed(2) + "%"),
-          h("div", { style: { fontSize: 9, color: "var(--ink-400)" } }, "P(positivo)"),
+          h("div", { style: { fontSize: 9, color: "var(--ink-400)" } }, "P(" + r.clase.toLowerCase() + ")"),
         ),
       ),
       // Barra de probabilidad

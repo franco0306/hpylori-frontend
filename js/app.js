@@ -80,6 +80,7 @@ function App() {
     setUser(null);
     setPrefs(DEFAULT_PREFS);
     setModelId(DEFAULT_PREFS.modelId);
+    setAuthView("login");
   };
 
   if (!authed) {

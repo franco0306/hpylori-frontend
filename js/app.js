@@ -11,12 +11,15 @@ import { BatchScreen }         from "./components/BatchScreen.js";
 import { HistoryScreen }       from "./components/HistoryScreen.js";
 import { SettingsScreen }      from "./components/SettingsScreen.js";
 import { HelpScreen }          from "./components/HelpScreen.js";
+import { AdminScreen }         from "./screens/AdminScreen.js";
+import { LegalModal, hasAcceptedLegal } from "./components/LegalModal.js";
 import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
 import { CONFIG }              from "./config.js";
 import { getInitialTheme, applyTheme, THEMES } from "./theme.js";
 import { getStoredPalette, storePalette } from "./xai.js";
 import { clearStudyMedia } from "./sessionCache.js";
+import { ROLES, getRole } from "./roles.js";
 import { isAuthenticated, getUser, logout, authFetch } from "./auth.js";
 
 const React    = window.React;
@@ -38,6 +41,8 @@ function App() {
 
   const [theme, setTheme]                 = useState(getInitialTheme);
   const [xaiPalette, setXaiPalette]       = useState(getStoredPalette);
+  const [legalOpen, setLegalOpen]         = useState(false);
+  const [legalForced, setLegalForced]     = useState(false);
   const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
   const [heatmapResult, setHeatmapResult] = useState(null);
   const [screen, setScreen]               = useState("single");
@@ -45,6 +50,14 @@ function App() {
 
   // Accesibilidad (WCAG 2.1): aplica y persiste el tema en cada cambio.
   useEffect(() => { applyTheme(theme); }, [theme]);
+
+  // Acuerdo de datos: obligatorio en el primer inicio de sesión de cada cuenta.
+  useEffect(() => {
+    if (!authed) return;                       // early return
+    if (hasAcceptedLegal(user)) return;
+    setLegalForced(true);
+    setLegalOpen(true);
+  }, [authed, user]);
 
   const toggleTheme = () =>
     setTheme((t) => (t === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK));
@@ -84,6 +97,10 @@ function App() {
     } catch { /* UI ya actualizada de forma optimista */ }
   };
 
+  const handleOpenLegal = () => { setLegalForced(false); setLegalOpen(true); };
+  const handleCloseLegal = () => setLegalOpen(false);
+  const handleAcceptLegal = () => { setLegalOpen(false); setLegalForced(false); };
+
   const handleAuthSuccess = (loggedInUser) => {
     setUser(loggedInUser);
     setAuthed(true);
@@ -113,6 +130,9 @@ function App() {
     history:   ["EndoScan AI", "Registros", "Historial"],
     settings:  ["EndoScan AI", "Sistema", "Configuración"],
     manual:    ["EndoScan AI", "Sistema", "Manual de usuario"],
+    "admin":           ["EndoScan AI", "Administración", "Panel Admin"],
+    "admin-auditoria": ["EndoScan AI", "Administración", "Auditoría y Cuotas"],
+    "admin-config":    ["EndoScan AI", "Administración", "Configuración Global"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
@@ -127,6 +147,27 @@ function App() {
         xaiPalette, onChangePalette: handleChangePalette,
       });
       case "manual":    return h(HelpScreen,     {});
+
+      // El acceso real debe validarlo el backend en cada endpoint /admin/*;
+      // esta comprobación solo evita mostrar la pantalla por error.
+      case "admin":
+      case "admin-auditoria":
+      case "admin-config": {
+        if (getRole(user) !== ROLES.ADMIN) {
+          return h("div", { className: "content" },
+            h("div", { className: "page-header" },
+              h("div", null,
+                h("h1", { className: "page-title" }, "Acceso restringido"),
+                h("div", { className: "page-sub" }, "Esta sección requiere una cuenta de administrador."))),
+            h("div", { className: "card card-pad", style: { textAlign: "center", padding: 48 } },
+              h("div", { className: "muted" }, "Su cuenta no tiene permisos de administración.")),
+          );
+        }
+        const section = screen === "admin-auditoria" ? "auditoria"
+                      : screen === "admin-config"    ? "config"
+                      : "panel";
+        return h(AdminScreen, { section, user, prefs, onSavePrefs: handleSavePrefs });
+      }
       default:
         return h("div", { className: "content" },
           h("div", { className: "page-header" },
@@ -142,8 +183,15 @@ function App() {
     h("div", { className: "main" },
       h(Topbar, { crumbs, user, theme, onToggleTheme: toggleTheme }),
       h("div", { "data-screen-label": screen, className: "screen" }, render()),
-      h(Disclaimer, null),
+      h(Disclaimer, { onOpenLegal: handleOpenLegal }),
     ),
+    h(LegalModal, {
+      open: legalOpen,
+      user,
+      dismissible: !legalForced,
+      onAccept: handleAcceptLegal,
+      onClose: handleCloseLegal,
+    }),
   );
 }
 

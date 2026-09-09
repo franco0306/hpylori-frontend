@@ -1,4 +1,5 @@
 import { I } from "../icons.js";
+import { ROLES, ROLE_LABEL, getRole } from "../roles.js";
 
 const h = window.React.createElement;
 
@@ -13,6 +14,16 @@ function initials(user) {
 // Navegación clínica. Las rutas técnicas (catálogo de modelos y comparativa de
 // arquitecturas) quedan fuera del menú: el gastroenterólogo no elige modelo.
 export function Sidebar({ current, onNavigate, user, onLogout }) {
+  const role = getRole(user);
+
+  // Accesos de administración técnica. Se suman a los clínicos: un
+  // administrador sigue necesitando ver lo que ve el médico para dar soporte.
+  const adminItems = role === ROLES.ADMIN ? [
+    { id: "admin",           label: "Panel Admin",          icon: I.shield, group: "Administración" },
+    { id: "admin-auditoria", label: "Auditoría y Cuotas",   icon: I.bars,   group: "Administración" },
+    { id: "admin-config",    label: "Configuración Global", icon: I.cog,    group: "Administración" },
+  ] : [];
+
   const items = [
     { id: "dashboard", label: "Panel principal",            icon: I.dash,    group: "Inicio" },
     { id: "single",    label: "Análisis individual",        icon: I.upload,  group: "Diagnóstico" },
@@ -21,6 +32,7 @@ export function Sidebar({ current, onNavigate, user, onLogout }) {
     { id: "history",   label: "Historial de estudios",      icon: I.history, group: "Registros" },
     { id: "settings",  label: "Configuración",              icon: I.cog,     group: "Sistema" },
     { id: "manual",    label: "Manual de usuario",          icon: I.book,    group: "Sistema" },
+    ...adminItems,
   ];
   const groups = [...new Set(items.map((i) => i.group))];
 
@@ -61,7 +73,7 @@ export function Sidebar({ current, onNavigate, user, onLogout }) {
         h("div", { className: "user-name", style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
           (user && (user.full_name || user.email)) || "Usuario"),
         h("div", { className: "user-role", style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
-          (user && user.email) || ""),
+          ROLE_LABEL[role] + ((user && user.email) ? " · " + user.email : "")),
       ),
       h("button", { className: "btn btn-ghost btn-icon", title: "Cerrar sesión", onClick: onLogout, style: { flexShrink: 0, color: "var(--ink-400)" } },
         h(I.logout, { size: 16 })),

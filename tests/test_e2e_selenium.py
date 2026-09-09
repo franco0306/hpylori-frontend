@@ -69,7 +69,8 @@ TEST_PACIENTE = "HC-2026-104"
 SAMPLES_DIR = os.path.join(FRONTEND_ROOT, "samples", "img")
 VALID_IMAGE = os.path.abspath(os.path.join(SAMPLES_DIR, "POSITIVO", "p144_f000840.jpg"))
 
-# Accesos clinicos que deben estar en el menu lateral, en este orden.
+# Accesos que ve una cuenta con rol clinico (rol por defecto).
+# Una cuenta 'admin' suma ademas el grupo de Administracion.
 SIDEBAR_ESPERADO = [
     "Panel principal",
     "Análisis individual",
@@ -242,6 +243,46 @@ def sc_register(driver):
     click_by_text(driver, "button", "Crear cuenta")
     wait_visible(driver, By.CSS_SELECTOR, "aside.sidebar", timeout=90)
     return f"Cuenta creada: {TEST_EMAIL}"
+
+
+# ── Escenario 2: Acuerdo de proteccion de datos (Ley 29733) ──────────────────
+def sc_legal_agreement(driver):
+    """El primer acceso de cada cuenta exige aceptar los terminos antes de operar."""
+    modal = wait_visible(driver, By.CSS_SELECTOR, ".modal", timeout=20)
+
+    if modal.get_attribute("role") != "dialog" or modal.get_attribute("aria-modal") != "true":
+        raise AssertionError("El acuerdo no se expone como dialogo modal accesible")
+
+    texto = modal.text
+    for exigido in ("CDSS", "TRL 6", "29733"):
+        if exigido not in texto:
+            raise AssertionError(f"El acuerdo no menciona '{exigido}'")
+    if "no vinculante" not in texto.lower():
+        raise AssertionError("El acuerdo no declara el caracter no vinculante del resultado")
+    if "esidentificaci" not in texto:
+        raise AssertionError("El acuerdo no incluye la clausula de desidentificacion")
+
+    aceptar = [b for b in modal.find_elements(By.TAG_NAME, "button") if "Aceptar" in b.text][0]
+    if aceptar.is_enabled():
+        raise AssertionError("El boton de aceptacion deberia exigir marcar la casilla")
+
+    driver.find_element(By.CSS_SELECTOR, ".legal-accept input").click()
+    time.sleep(0.4)
+    aceptar = [b for b in driver.find_elements(By.CSS_SELECTOR, ".modal button") if "Aceptar" in b.text][0]
+    if not aceptar.is_enabled():
+        raise AssertionError("Marcar la casilla deberia habilitar la aceptacion")
+    aceptar.click()
+
+    WebDriverWait(driver, 10).until(
+        lambda d: not d.find_elements(By.CSS_SELECTOR, ".modal"))
+
+    persistido = driver.execute_script(
+        "return Object.keys(localStorage).filter(function (k) {"
+        "  return k.indexOf('endoscan.legal.') === 0; }).length;")
+    if persistido < 1:
+        raise AssertionError("La aceptacion no quedo registrada en el navegador")
+
+    return "Acuerdo Ley 29733 mostrado en el primer acceso, aceptado y persistido"
 
 
 # ── Escenario 2: Cierre de sesion ────────────────────────────────────────────
@@ -690,24 +731,25 @@ def main():
     driver = make_driver()
     try:
         run_scenario(driver, "1", "Registro de nueva cuenta", "Autenticacion", "Particion de equivalencias", sc_register)
-        run_scenario(driver, "2", "Cierre de sesion", "Autenticacion", "Caso de uso", sc_logout)
-        run_scenario(driver, "3", "Inicio de sesion", "Autenticacion", "Particion de equivalencias", sc_login)
-        run_scenario(driver, "4", "Accesos clinicos del menu lateral", "Navegacion", "Cobertura de interfaz", sc_sidebar_clinico)
-        run_scenario(driver, "5", "Barra superior clinica", "Navegacion", "Cobertura de interfaz", sc_topbar_clinico)
-        run_scenario(driver, "6", "Carga de imagen para analisis", "Analisis individual", "Valores borde", sc_upload_boundaries)
-        run_scenario(driver, "7", "Identificador de paciente", "Analisis individual", "Caso de uso", sc_patient_field)
-        run_scenario(driver, "8", "Analisis con motor ResNet50 fijo", "Analisis individual", "Tabla de decision", sc_run_analysis)
-        run_scenario(driver, "9", "Informe clinico en PDF", "Analisis individual", "Caso de uso", sc_download_pdf)
-        run_scenario(driver, "10", "Visualizacion Grad-CAM en vivo", "Grad-CAM", "Caso de uso", sc_gradcam)
-        run_scenario(driver, "11", "Gating de Grad-CAM por sesion", "Grad-CAM", "Tabla de decision", sc_gradcam_gating)
-        run_scenario(driver, "12", "Busqueda en el historial", "Historial de estudios", "Particion de equivalencias", sc_history_search)
-        run_scenario(driver, "13", "Conmutacion a modo oscuro", "Accesibilidad", "Caso de uso", sc_dark_mode)
-        run_scenario(driver, "14", "Carga y previsualizacion del lote", "Procesamiento por lote", "Valores borde", sc_batch_upload)
-        run_scenario(driver, "15", "Procesamiento del lote", "Procesamiento por lote", "Caso de uso", sc_batch_run)
-        run_scenario(driver, "16", "Exportacion del resumen clinico", "Procesamiento por lote", "Caso de uso", sc_batch_export_csv)
-        run_scenario(driver, "17", "Sensibilidad del analisis", "Configuracion", "Valores borde", sc_settings_sensibilidad)
-        run_scenario(driver, "18", "Ficha tecnica del motor activo", "Manual de usuario", "Cobertura de interfaz", sc_manual_motor)
-        run_scenario(driver, "19", "Consola sin errores", "Calidad", "Cobertura de interfaz", sc_consola_limpia)
+        run_scenario(driver, "2", "Acuerdo de proteccion de datos", "Cumplimiento", "Caso de uso", sc_legal_agreement)
+        run_scenario(driver, "3", "Cierre de sesion", "Autenticacion", "Caso de uso", sc_logout)
+        run_scenario(driver, "4", "Inicio de sesion", "Autenticacion", "Particion de equivalencias", sc_login)
+        run_scenario(driver, "5", "Accesos clinicos del menu lateral", "Navegacion", "Cobertura de interfaz", sc_sidebar_clinico)
+        run_scenario(driver, "6", "Barra superior clinica", "Navegacion", "Cobertura de interfaz", sc_topbar_clinico)
+        run_scenario(driver, "7", "Carga de imagen para analisis", "Analisis individual", "Valores borde", sc_upload_boundaries)
+        run_scenario(driver, "8", "Identificador de paciente", "Analisis individual", "Caso de uso", sc_patient_field)
+        run_scenario(driver, "9", "Analisis con motor ResNet50 fijo", "Analisis individual", "Tabla de decision", sc_run_analysis)
+        run_scenario(driver, "10", "Informe clinico en PDF", "Analisis individual", "Caso de uso", sc_download_pdf)
+        run_scenario(driver, "11", "Visualizacion Grad-CAM en vivo", "Grad-CAM", "Caso de uso", sc_gradcam)
+        run_scenario(driver, "12", "Gating de Grad-CAM por sesion", "Grad-CAM", "Tabla de decision", sc_gradcam_gating)
+        run_scenario(driver, "13", "Busqueda en el historial", "Historial de estudios", "Particion de equivalencias", sc_history_search)
+        run_scenario(driver, "14", "Conmutacion a modo oscuro", "Accesibilidad", "Caso de uso", sc_dark_mode)
+        run_scenario(driver, "15", "Carga y previsualizacion del lote", "Procesamiento por lote", "Valores borde", sc_batch_upload)
+        run_scenario(driver, "16", "Procesamiento del lote", "Procesamiento por lote", "Caso de uso", sc_batch_run)
+        run_scenario(driver, "17", "Exportacion del resumen clinico", "Procesamiento por lote", "Caso de uso", sc_batch_export_csv)
+        run_scenario(driver, "18", "Sensibilidad del analisis", "Configuracion", "Valores borde", sc_settings_sensibilidad)
+        run_scenario(driver, "19", "Ficha tecnica del motor activo", "Manual de usuario", "Cobertura de interfaz", sc_manual_motor)
+        run_scenario(driver, "20", "Consola sin errores", "Calidad", "Cobertura de interfaz", sc_consola_limpia)
         if HEADED:
             log("Fin de escenarios - la ventana queda abierta 6s...")
             time.sleep(6)

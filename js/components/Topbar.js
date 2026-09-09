@@ -120,12 +120,18 @@ export function Topbar({ crumbs, user, theme, onToggleTheme }) {
   );
 }
 
-export function Disclaimer() {
+export function Disclaimer({ onOpenLegal }) {
   return h("div", { className: "disclaimer", role: "note" },
-    h(I.alert, { size: 14 }),
+    h(I.alert, { size: 14, "aria-hidden": true }),
     h("span", null,
       h("strong", null, "Aviso legal · Herramienta de apoyo diagnóstico."),
       " No reemplaza el criterio clínico del especialista. Toda decisión terapéutica debe ser validada por un gastroenterólogo certificado.",
     ),
+    onOpenLegal && h("button", {
+      type: "button",
+      className: "disclaimer-link",
+      onClick: onOpenLegal,
+      "aria-label": "Abrir los términos del servicio y la privacidad de datos médicos",
+    }, "Ver términos y privacidad"),
   );
 }

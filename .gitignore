@@ -9,3 +9,6 @@ node_modules/
 
 # Entorno
 .env
+
+# Artefactos descargados por la suite E2E (se regeneran en cada corrida)
+tests/e2e_results/downloads/

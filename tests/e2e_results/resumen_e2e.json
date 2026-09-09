@@ -1,11 +1,11 @@
 {
-  "run_id": "20260909101321",
-  "fecha": "2026-09-09T10:14:21.399832",
-  "test_email": "qa.selenium.taller.20260909101321@example.com",
+  "run_id": "20260909102510",
+  "fecha": "2026-09-09T10:26:00.285398",
+  "test_email": "qa.selenium.taller.20260909102510@example.com",
   "base_url_frontend": "http://127.0.0.1:8899/index.html",
   "base_url_backend": "https://franco0306-hpylori-detection.hf.space",
-  "total": 19,
-  "aprobados": 19,
+  "total": 20,
+  "aprobados": 20,
   "fallidos": 0,
   "escenarios": [
     {
@@ -14,189 +14,199 @@
       "modulo": "Autenticacion",
       "tecnica": "Particion de equivalencias",
       "estado": "APROBADO",
-      "detalle": "Cuenta creada: qa.selenium.taller.20260909101321@example.com",
-      "duracion_s": 3.56,
+      "detalle": "Cuenta creada: qa.selenium.taller.20260909102510@example.com",
+      "duracion_s": 3.74,
       "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\1_APROBADO.png"
     },
     {
       "id": "2",
+      "escenario": "Acuerdo de proteccion de datos",
+      "modulo": "Cumplimiento",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Acuerdo Ley 29733 mostrado en el primer acceso, aceptado y persistido",
+      "duracion_s": 0.59,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\2_APROBADO.png"
+    },
+    {
+      "id": "3",
       "escenario": "Cierre de sesion",
       "modulo": "Autenticacion",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Sesion cerrada, vuelve a la pantalla de acceso",
       "duracion_s": 0.05,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\2_APROBADO.png"
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\3_APROBADO.png"
     },
     {
-      "id": "3",
+      "id": "4",
       "escenario": "Inicio de sesion",
       "modulo": "Autenticacion",
       "tecnica": "Particion de equivalencias",
       "estado": "APROBADO",
       "detalle": "Login exitoso con la cuenta registrada",
-      "duracion_s": 1.14,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\3_APROBADO.png"
+      "duracion_s": 1.19,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\4_APROBADO.png"
     },
     {
-      "id": "4",
+      "id": "5",
       "escenario": "Accesos clinicos del menu lateral",
       "modulo": "Navegacion",
       "tecnica": "Cobertura de interfaz",
       "estado": "APROBADO",
       "detalle": "7 accesos clinicos correctos y sin rutas tecnicas: ['Panel principal', 'Análisis individual', 'Visualización Grad-CAM', 'Procesamiento por lote', 'Historial de estudios', 'Configuración', 'Manual de usuario']",
       "duracion_s": 0.09,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\4_APROBADO.png"
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\5_APROBADO.png"
     },
     {
-      "id": "5",
+      "id": "6",
       "escenario": "Barra superior clinica",
       "modulo": "Navegacion",
       "tecnica": "Cobertura de interfaz",
       "estado": "APROBADO",
       "detalle": "Estado='Sistema listo para analizar', switch de tema y perfil 'QS' presentes; sin controles tecnicos",
-      "duracion_s": 0.11,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\5_APROBADO.png"
+      "duracion_s": 0.1,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\6_APROBADO.png"
     },
     {
-      "id": "6",
+      "id": "7",
       "escenario": "Carga de imagen para analisis",
       "modulo": "Analisis individual",
       "tecnica": "Valores borde",
       "estado": "APROBADO",
       "detalle": "Rechaza .txt y >10MB; acepta imagen valida (particion de equivalencias + valores borde)",
-      "duracion_s": 0.96,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\6_APROBADO.png"
+      "duracion_s": 0.95,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\7_APROBADO.png"
     },
     {
-      "id": "7",
+      "id": "8",
       "escenario": "Identificador de paciente",
       "modulo": "Analisis individual",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Campo 'ID Paciente / Historia Clinica' presente y relleno con HC-2026-104",
       "duracion_s": 0.06,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\7_APROBADO.png"
-    },
-    {
-      "id": "8",
-      "escenario": "Analisis con motor ResNet50 fijo",
-      "modulo": "Analisis individual",
-      "tecnica": "Tabla de decision",
-      "estado": "APROBADO",
-      "detalle": "model_id=resnet50 | Sospecha de infección por H. pylori | 87.7% | latencia ['1,018ms']",
-      "duracion_s": 2.67,
       "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\8_APROBADO.png"
     },
     {
       "id": "9",
+      "escenario": "Analisis con motor ResNet50 fijo",
+      "modulo": "Analisis individual",
+      "tecnica": "Tabla de decision",
+      "estado": "APROBADO",
+      "detalle": "model_id=resnet50 | Sospecha de infección por H. pylori | 87.7% | latencia ['973ms']",
+      "duracion_s": 2.65,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\9_APROBADO.png"
+    },
+    {
+      "id": "10",
       "escenario": "Informe clinico en PDF",
       "modulo": "Analisis individual",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Informe generado con resultado y paciente HC-2026-104",
-      "duracion_s": 0.32,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\9_APROBADO.png"
+      "duracion_s": 0.23,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\10_APROBADO.png"
     },
     {
-      "id": "10",
+      "id": "11",
       "escenario": "Visualizacion Grad-CAM en vivo",
       "modulo": "Grad-CAM",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Grad-CAM real superpuesto; segmentos disponibles: ['Antro gástrico', 'Cuerpo gástrico', 'Incisura angularis', 'Fondo gástrico']",
-      "duracion_s": 1.66,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\10_APROBADO.png"
+      "duracion_s": 1.69,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\11_APROBADO.png"
     },
     {
-      "id": "11",
+      "id": "12",
       "escenario": "Gating de Grad-CAM por sesion",
       "modulo": "Grad-CAM",
       "tecnica": "Tabla de decision",
       "estado": "APROBADO",
       "detalle": "Habilitado con cache de sesion; deshabilitado tras recargar con tooltip 'Visualización XAI disponible solo en sesión activa'",
-      "duracion_s": 3.66,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\11_APROBADO.png"
+      "duracion_s": 3.63,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\12_APROBADO.png"
     },
     {
-      "id": "12",
+      "id": "13",
       "escenario": "Busqueda en el historial",
       "modulo": "Historial de estudios",
       "tecnica": "Particion de equivalencias",
       "estado": "APROBADO",
       "detalle": "Filtrado en vivo correcto (1 estudios -> 0 -> 1)",
       "duracion_s": 1.69,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\12_APROBADO.png"
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\13_APROBADO.png"
     },
     {
-      "id": "13",
+      "id": "14",
       "escenario": "Conmutacion a modo oscuro",
       "modulo": "Accesibilidad",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "data-theme conmutado light -> dark (fondo rgb(11, 17, 32)) -> light, con persistencia",
-      "duracion_s": 0.1,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\13_APROBADO.png"
+      "duracion_s": 0.09,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\14_APROBADO.png"
     },
     {
-      "id": "14",
+      "id": "15",
       "escenario": "Carga y previsualizacion del lote",
       "modulo": "Procesamiento por lote",
       "tecnica": "Valores borde",
       "estado": "APROBADO",
       "detalle": "12 imagenes en la serie con previsualizacion; exportacion aun oculta",
       "duracion_s": 0.93,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\14_APROBADO.png"
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\15_APROBADO.png"
     },
     {
-      "id": "15",
+      "id": "16",
       "escenario": "Procesamiento del lote",
       "modulo": "Procesamiento por lote",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Lote procesado con inferencias reales: 6 positivos, 6 negativos",
-      "duracion_s": 30.92,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\15_APROBADO.png"
+      "duracion_s": 19.85,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\16_APROBADO.png"
     },
     {
-      "id": "16",
+      "id": "17",
       "escenario": "Exportacion del resumen clinico",
       "modulo": "Procesamiento por lote",
       "tecnica": "Caso de uso",
       "estado": "APROBADO",
       "detalle": "Resumen clinico del lote exportado a CSV",
-      "duracion_s": 0.59,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\16_APROBADO.png"
+      "duracion_s": 0.57,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\17_APROBADO.png"
     },
     {
-      "id": "17",
+      "id": "18",
       "escenario": "Sensibilidad del analisis",
       "modulo": "Configuracion",
       "tecnica": "Valores borde",
       "estado": "APROBADO",
       "detalle": "Sensibilidad cambiada a 'Prioriza detectar' y guardada en la cuenta",
-      "duracion_s": 1.82,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\17_APROBADO.png"
+      "duracion_s": 1.8,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\18_APROBADO.png"
     },
     {
-      "id": "18",
+      "id": "19",
       "escenario": "Ficha tecnica del motor activo",
       "modulo": "Manual de usuario",
       "tecnica": "Cobertura de interfaz",
       "estado": "APROBADO",
       "detalle": "Ficha unica de ResNet-50 con metricas ['84.95 %', '89.82 %', '0.9524', '< 200 ms']",
-      "duracion_s": 1.19,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\18_APROBADO.png"
+      "duracion_s": 1.15,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\19_APROBADO.png"
     },
     {
-      "id": "19",
+      "id": "20",
       "escenario": "Consola sin errores",
       "modulo": "Calidad",
       "tecnica": "Cobertura de interfaz",
       "estado": "APROBADO",
       "detalle": "Recorrido completo sin errores de JavaScript",
       "duracion_s": 0.01,
-      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\19_APROBADO.png"
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\20_APROBADO.png"
     }
   ]
 }

@@ -1,0 +1,188 @@
+{
+  "run_id": "20260725113350",
+  "fecha": "2026-07-25T11:35:22.288055",
+  "test_email": "qa.selenium.taller.20260725113350@example.com",
+  "base_url_frontend": "https://franco0306.github.io/hpylori-frontend/",
+  "base_url_backend": "https://franco0306-hpylori-detection.hf.space",
+  "total": 16,
+  "aprobados": 16,
+  "fallidos": 0,
+  "escenarios": [
+    {
+      "id": "1",
+      "hu": "HU-1.1",
+      "escenario": "Registro de Nueva Cuenta",
+      "modulo": "Autenticacion",
+      "tecnica": "Particion de equivalencias",
+      "estado": "APROBADO",
+      "detalle": "Cuenta creada: qa.selenium.taller.20260725113350@example.com",
+      "duracion_s": 5.4,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\1_APROBADO.png"
+    },
+    {
+      "id": "3",
+      "hu": "HU-1.3",
+      "escenario": "Cierre de Sesion",
+      "modulo": "Autenticacion",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Sesion cerrada, vuelve a la pantalla de login",
+      "duracion_s": 0.19,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\3_APROBADO.png"
+    },
+    {
+      "id": "2",
+      "hu": "HU-1.2",
+      "escenario": "Inicio de Sesion",
+      "modulo": "Autenticacion",
+      "tecnica": "Particion de equivalencias y valores borde",
+      "estado": "APROBADO",
+      "detalle": "Login exitoso con la cuenta registrada",
+      "duracion_s": 1.58,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\2_APROBADO.png"
+    },
+    {
+      "id": "4",
+      "hu": "HU-001",
+      "escenario": "Carga de Imagen para Analisis Individual",
+      "modulo": "Analisis individual",
+      "tecnica": "Valores borde y particion de equivalencias",
+      "estado": "APROBADO",
+      "detalle": "Rechaza .txt y >10MB; acepta imagen valida (partición de equivalencias + valores borde)",
+      "duracion_s": 0.39,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\4_APROBADO.png"
+    },
+    {
+      "id": "5",
+      "hu": "HU-001",
+      "escenario": "Ejecucion del Analisis y Umbral de Clasificacion",
+      "modulo": "Analisis individual",
+      "tecnica": "Tabla de decision",
+      "estado": "APROBADO",
+      "detalle": "Resultado real del modelo: Positivo · H. pylori (87.7%)",
+      "duracion_s": 3.05,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\5_APROBADO.png"
+    },
+    {
+      "id": "6",
+      "hu": "HU-001",
+      "escenario": "Descarga de Informe PDF Clinico",
+      "modulo": "Analisis individual",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Informe HTML/PDF generado con el resultado del analisis",
+      "duracion_s": 0.6,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\6_APROBADO.png"
+    },
+    {
+      "id": "7",
+      "hu": "HU-002",
+      "escenario": "Visualizacion y Descarga de Grad-CAM",
+      "modulo": "Grad-CAM",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Se muestra imagen original + Grad-CAM superpuesto del resultado real",
+      "duracion_s": 0.34,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\7_APROBADO.png"
+    },
+    {
+      "id": "8",
+      "hu": "HU-003",
+      "escenario": "Carga Multiple de Imagenes para Lote",
+      "modulo": "Procesamiento por lote",
+      "tecnica": "Valores borde y particion de equivalencias",
+      "estado": "APROBADO",
+      "detalle": "12 imagenes de demostracion cargadas en la cola del lote",
+      "duracion_s": 0.41,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\8_APROBADO.png"
+    },
+    {
+      "id": "9",
+      "hu": "HU-003",
+      "escenario": "Procesamiento del Lote",
+      "modulo": "Procesamiento por lote",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Lote procesado: 6 positivos, 6 negativos (12 inferencias reales)",
+      "duracion_s": 19.32,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\9_APROBADO.png"
+    },
+    {
+      "id": "10",
+      "hu": "HU-003",
+      "escenario": "Exportacion de Resultados a CSV",
+      "modulo": "Procesamiento por lote",
+      "tecnica": "Particion de equivalencias",
+      "estado": "APROBADO",
+      "detalle": "Archivo lote.csv descargado correctamente",
+      "duracion_s": 0.66,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\10_APROBADO.png"
+    },
+    {
+      "id": "11",
+      "hu": "HU-004",
+      "escenario": "Filtros del Historial de Estudios",
+      "modulo": "Historial de estudios",
+      "tecnica": "Tabla de decision",
+      "estado": "APROBADO",
+      "detalle": "Filtro 'Positivo' aplicado; badges negativos tras filtrar: 1",
+      "duracion_s": 2.53,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\11_APROBADO.png"
+    },
+    {
+      "id": "12",
+      "hu": "HU-004",
+      "escenario": "Vista de Historial Agrupado por Paciente",
+      "modulo": "Historial de estudios",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Vista agrupada por paciente activa; grupos sin paciente detectados: 1",
+      "duracion_s": 0.7,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\12_APROBADO.png"
+    },
+    {
+      "id": "13",
+      "hu": "HU-004",
+      "escenario": "Eliminacion de Estudios",
+      "modulo": "Historial de estudios",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "Estudio eliminado (total visible antes: 1)",
+      "duracion_s": 1.88,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\13_APROBADO.png"
+    },
+    {
+      "id": "14",
+      "hu": "HU-005",
+      "escenario": "Seleccion de Modelo Activo",
+      "modulo": "Modelos disponibles",
+      "tecnica": "Particion de equivalencias",
+      "estado": "APROBADO",
+      "detalle": "GoogLeNet seleccionado como modelo activo (badge ACTIVO confirmado)",
+      "duracion_s": 0.36,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\14_APROBADO.png"
+    },
+    {
+      "id": "15",
+      "hu": "HU-006",
+      "escenario": "Analisis Comparativo con los 6 Modelos",
+      "modulo": "Comparativa de modelos",
+      "tecnica": "Caso de uso",
+      "estado": "APROBADO",
+      "detalle": "6 inferencias reales completadas. Consenso: Positivo · H. pylori",
+      "duracion_s": 10.47,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\15_APROBADO.png"
+    },
+    {
+      "id": "16",
+      "hu": "HU-007",
+      "escenario": "Umbral de Clasificacion y Modelo por Defecto",
+      "modulo": "Configuracion",
+      "tecnica": "Valores borde",
+      "estado": "APROBADO",
+      "detalle": "Umbral cambiado a 0.30 y guardado en la cuenta del usuario",
+      "duracion_s": 0.46,
+      "captura": "D:\\TALLER INTEGRADOR SISTEMA\\hpylori-frontend\\tests\\e2e_results\\16_APROBADO.png"
+    }
+  ]
+}

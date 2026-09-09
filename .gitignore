@@ -1,0 +1,11 @@
+# Bytecode de Python (suite E2E)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Dependencias
+node_modules/
+
+# Entorno
+.env

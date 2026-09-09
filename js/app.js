@@ -65,6 +65,23 @@ function App() {
   // Paleta XAI: preferencia de accesibilidad, persistida en el navegador.
   const handleChangePalette = (id) => setXaiPalette(storePalette(id));
 
+  // Refresca el usuario desde el servidor al abrir sesión: así un cambio de rol
+  // hecho por un administrador surte efecto sin obligar a cerrar y volver a
+  // entrar, y el rol guardado en el navegador nunca manda sobre el del backend.
+  useEffect(() => {
+    if (!authed) return;
+    let mounted = true;
+    authFetch(CONFIG.ME_PATH).then(async (res) => {
+      if (!res.ok) return;
+      const fresh = await res.json();
+      if (!mounted || !fresh) return;
+      setUser(fresh);
+      try { window.localStorage.setItem("endoscan_user", JSON.stringify(fresh)); }
+      catch { /* almacenamiento bloqueado: el rol vive solo en memoria */ }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [authed]);
+
   // Carga las preferencias guardadas al autenticarse.
   // `modelId` del backend se ignora deliberadamente: la UI clínica es ResNet50.
   useEffect(() => {

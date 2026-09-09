@@ -17,10 +17,17 @@ export function Sidebar({ current, onNavigate, user, onLogout }) {
     { id: "dashboard", label: "Panel principal",            icon: I.dash,    group: "Inicio" },
     { id: "single",    label: "Análisis individual",        icon: I.upload,  group: "Diagnóstico" },
     { id: "heatmap",   label: "Visualización Grad-CAM",     icon: I.heat,    group: "Diagnóstico" },
+    { id: "batch",     label: "Procesamiento por lote",     icon: I.layers,  group: "Diagnóstico" },
     { id: "history",   label: "Historial de estudios",      icon: I.history, group: "Registros" },
     { id: "settings",  label: "Configuración",              icon: I.cog,     group: "Sistema" },
+    { id: "manual",    label: "Manual de usuario",          icon: I.book,    group: "Sistema" },
   ];
   const groups = [...new Set(items.map((i) => i.group))];
+
+  const handleNavigate = (id) => {
+    if (id === current) return;   // early return: evita re-render innecesario
+    onNavigate(id);
+  };
 
   return h("aside", { className: "sidebar" },
     h("div", { className: "brand" },
@@ -30,16 +37,18 @@ export function Sidebar({ current, onNavigate, user, onLogout }) {
         h("div", { className: "brand-sub" }, "Apoyo diagnóstico"),
       ),
     ),
-    h("nav", { className: "nav" },
+    h("nav", { className: "nav", "aria-label": "Navegación principal" },
       ...groups.flatMap((g) => [
         h("div", { key: "s-" + g, className: "nav-section" }, g),
         ...items.filter((i) => i.group === g).map((i) =>
           h("button", {
             key: i.id,
+            type: "button",
             className: "nav-item" + (current === i.id ? " active" : ""),
-            onClick: () => onNavigate(i.id),
+            "aria-current": current === i.id ? "page" : undefined,
+            onClick: () => handleNavigate(i.id),
           },
-            h(i.icon, { className: "nav-icon", size: 16 }),
+            h(i.icon, { className: "nav-icon", size: 16, "aria-hidden": true }),
             h("span", null, i.label),
             i.badge && h("span", { className: "nav-badge" }, i.badge),
           ),

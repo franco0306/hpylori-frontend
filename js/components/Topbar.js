@@ -1,7 +1,49 @@
 import { I } from "../icons.js";
 import { THEMES } from "../theme.js";
+import { CONFIG } from "../config.js";
 
-const h = window.React.createElement;
+const React = window.React;
+const { useState, useEffect, useCallback } = React;
+const h = React.createElement;
+
+// Comprobación real del servicio de análisis. Se usa `no-cors`: no necesitamos
+// leer la respuesta, solo saber si el servidor contesta. Cualquier respuesta
+// (incluso opaca) significa alcanzable; solo un fallo de red cuenta como caída.
+const PROBE_TIMEOUT_MS = 12000;
+const RECHECK_MS = 120000;
+
+async function probeService() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+  try {
+    await fetch(CONFIG.API_BASE_URL + "/", {
+      method: "GET", mode: "no-cors", cache: "no-store", signal: ctrl.signal,
+    });
+    return "online";
+  } catch {
+    return "offline";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Estado del servicio en lenguaje clínico: el médico necesita saber si puede
+// analizar, no si un endpoint HTTP responde.
+const STATUS_TEXT = {
+  checking: {
+    label: "Comprobando conexión…",
+    title: "Verificando que el servidor de análisis esté disponible.",
+  },
+  online: {
+    label: "Sistema listo para analizar",
+    title: "El servidor de análisis responde con normalidad. Puede procesar imágenes.",
+  },
+  offline: {
+    label: "Sin conexión con el servidor",
+    title: "No se puede contactar el servidor de análisis. Revise su conexión a internet " +
+           "e inténtelo de nuevo; las imágenes no podrán analizarse mientras tanto.",
+  },
+};
 
 function initials(user) {
   if (!user) return "?";
@@ -15,6 +57,22 @@ function initials(user) {
 // Solo contexto de navegación, estado del servicio, accesibilidad y usuario.
 export function Topbar({ crumbs, user, theme, onToggleTheme }) {
   const dark = theme === THEMES.DARK;
+  const [status, setStatus] = useState("checking");
+
+  const handleCheckService = useCallback(() => {
+    let alive = true;
+    setStatus("checking");
+    probeService().then((next) => { if (alive) setStatus(next); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const cancel = handleCheckService();
+    const iv = setInterval(handleCheckService, RECHECK_MS);
+    return () => { cancel(); clearInterval(iv); };
+  }, [handleCheckService]);
+
+  const info = STATUS_TEXT[status];
 
   return h("div", { className: "topbar" },
     h("div", { className: "crumbs" },
@@ -27,9 +85,18 @@ export function Topbar({ crumbs, user, theme, onToggleTheme }) {
     ),
     h("div", { className: "topbar-spacer" }),
 
-    h("div", { className: "system-status" },
-      h("span", { className: "dot" }),
-      h("span", null, "API conectada"),
+    h("button", {
+      type: "button",
+      className: "system-status is-" + status,
+      onClick: handleCheckService,
+      title: info.title + " Pulse para comprobar de nuevo.",
+      "aria-label": info.label + ". Pulse para comprobar la conexión de nuevo.",
+    },
+      h("span", {
+        className: "dot" + (status === "online" ? "" : " dot-" + status),
+        "aria-hidden": true,
+      }),
+      h("span", { role: "status", "aria-live": "polite" }, info.label),
     ),
 
     // ── Accesibilidad: modo oscuro para salas de baja iluminación ───────────

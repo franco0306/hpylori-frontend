@@ -1,8 +1,10 @@
 import { I } from "../icons.js";
+import { fmtLatencia } from "../format.js";
 import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { predict } from "../api.js";
 import { saveStudy } from "../history.js";
+import { cacheStudyMedia } from "../sessionCache.js";
 
 const React = window.React;
 const { useState, useRef } = React;
@@ -52,12 +54,25 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       // Sin `modelId`: la capa de API fija ResNet50 para toda la interfaz clínica.
       const res = await predict(payload, { positive, heat, threshold, forceError: opts.forceError });
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
-      saveStudy(file, res, patientName); // fire-and-forget
+      // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
+      // persiste metadatos, así que esta es la única copia mientras dure la sesión.
+      saveStudy(file, res, patientName)
+        .then((saved) => {
+          if (!saved || !saved.id) return;   // early return
+          cacheStudyMedia(saved.id, {
+            src: file.src,
+            heatmap_b64: res.heatmap_b64 || null,
+            name: file.name,
+          });
+        })
+        .catch(() => { /* el historial es accesorio: nunca bloquea el diagnóstico */ });
     } catch (e) {
       clearInterval(iv); setPhase("error");
       setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
     }
   };
+
+  const handlePatientChange = (e) => setPatientName(e.target.value);
 
   const reset = () => {
     setFile(null); setResult(null); setPhase("idle");
@@ -73,8 +88,9 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     const conf      = result.prob;
     const confLabel = conf >= 0.85 ? "Alta" : conf >= 0.65 ? "Media" : "Baja";
     const colorResult = isPos ? "#dc2626" : "#16a34a";
-    const pacienteRow = patientName.trim()
-      ? `<tr><td>Paciente</td><td><strong>${patientName.trim()}</strong></td></tr>` : "";
+    const pacienteId  = patientName.trim();
+    const pacienteRow = pacienteId
+      ? `<tr><td>ID Paciente / HC</td><td><strong>${pacienteId}</strong></td></tr>` : "";
 
     // ── Construir imagen compuesta (original + heatmap) con Canvas ─────────
     const loadImg = (src) => new Promise((res, rej) => {
@@ -169,6 +185,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     </div>
     <div class="meta">
       <div>Informe de análisis endoscópico</div>
+      ${pacienteId ? `<div style="margin-top:4px"><strong>Paciente:</strong> ${pacienteId}</div>` : ""}
       <div style="margin-top:4px">${fecha}</div>
     </div>
   </div>
@@ -192,6 +209,10 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   </div>
 
   <div style="display:flex;gap:24px">
+    <div class="section" style="width:190px;flex-shrink:0">
+      <div class="section-title">Imagen analizada</div>
+      <img src="${file.src}" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;display:block" />
+    </div>
     <div class="section" style="flex:1">
       <div class="section-title">Datos del estudio</div>
       <table>
@@ -200,7 +221,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
         <tr><td>Modelo</td><td>${result.modelo || model.name} ${model.version}</td></tr>
         <tr><td>Probabilidad cruda</td><td>${(result.prob * 100).toFixed(2)}%</td></tr>
         <tr><td>Confianza</td><td>${confLabel} (${(conf * 100).toFixed(1)}%)</td></tr>
-        <tr><td>Latencia inferencia</td><td>${result.latencia_ms} ms</td></tr>
+        <tr><td>Tiempo de análisis</td><td>${fmtLatencia(result.latencia_ms)} ms</td></tr>
       </table>
     </div>
     <div class="section" style="flex:1">
@@ -270,6 +291,25 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           }, h(I.trash, { size: 14 })),
         ),
         h("div", { className: "card-pad" },
+          // Identificador del paciente: se captura antes de cargar la imagen
+          // para que quede asociado al estudio desde el primer momento.
+          h("div", { className: "field", style: { marginBottom: 16 } },
+            h("label", { className: "field-label", htmlFor: "patient-id" },
+              "ID Paciente / Historia Clínica ",
+              h("span", { className: "field-optional" }, "(Opcional)"),
+            ),
+            h("input", {
+              id: "patient-id",
+              className: "input field-input",
+              type: "text",
+              value: patientName,
+              onChange: handlePatientChange,
+              placeholder: "Ej: HC-2026-104",
+              disabled: phase === "loading",
+              autoComplete: "off",
+              "aria-label": "ID de paciente o historia clínica (opcional)",
+            }),
+          ),
           !file ? h("div", null,
             h("div", {
               "data-dropzone": true,
@@ -287,6 +327,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("input", {
                 ref: inputRef, type: "file",
                 accept: "image/jpeg,image/png", hidden: true,
+                "aria-label": "Seleccionar imagen endoscópica",
                 onChange: (e) => accept(e.target.files && e.target.files[0]),
               }),
             ),
@@ -321,26 +362,6 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("img", { src: file.src, alt: file.name }),
               h("div", { className: "preview-chip" },
                 file.name + " · " + (file.size / 1024 / 1024).toFixed(2) + " MB"),
-            ),
-            // ── Campo de paciente ────────────────────────────────────────────
-            h("div", { style: { marginTop: 14 } },
-              h("label", { style: { fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".06em", display: "block", marginBottom: 5 } },
-                "Paciente ", h("span", { style: { fontWeight: 400, textTransform: "none" } }, "(opcional)"),
-              ),
-              h("input", {
-                type: "text",
-                value: patientName,
-                onChange: (e) => setPatientName(e.target.value),
-                placeholder: "Nombre o ID del paciente — ej. Juan Quispe / PAC-042",
-                disabled: phase === "loading",
-                style: {
-                  width: "100%", boxSizing: "border-box",
-                  padding: "8px 12px", fontSize: 13,
-                  border: "1px solid var(--ink-200)", borderRadius: 8,
-                  outline: "none", fontFamily: "inherit",
-                  background: phase === "loading" ? "var(--ink-50)" : "var(--white)",
-                },
-              }),
             ),
             h("div", { className: "row between", style: { marginTop: 12 } },
               h("span", { className: "badge badge-info" }, "Listo para analizar"),
@@ -446,7 +467,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 h("div", {
                   className: "metric-value",
                   style: { color: result.latencia_ms < 2000 ? "var(--ink-900)" : "var(--red-600)" },
-                }, result.latencia_ms, h("small", null, "ms"))),
+                }, fmtLatencia(result.latencia_ms), h("small", null, "ms"))),
             ),
             positive && h("div", { className: "alert alert-warn", style: { marginTop: 14 } },
               h(I.info, { size: 16 }),
@@ -456,7 +477,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               ),
             ),
             h("div", { className: "row", style: { marginTop: 16, gap: 8 } },
-              h("button", { className: "btn btn-secondary", onClick: downloadReport }, h(I.dl, { size: 14 }), "Descargar informe PDF"),
+              h("button", {
+                className: "btn btn-primary",
+                onClick: downloadReport,
+                "aria-label": "Descargar informe clínico en PDF",
+              }, h(I.dl, { size: 14 }), "Descargar Informe Clínico (PDF)"),
               h("button", {
                 className: "btn btn-ghost",
                 onClick: () => onViewHeatmap && onViewHeatmap(result, file),

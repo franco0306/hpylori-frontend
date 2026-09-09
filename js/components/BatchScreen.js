@@ -150,8 +150,11 @@ export function BatchScreen({ model, threshold }) {
           "Hasta 50 imágenes endoscópicas por serie"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
-        h("button", { className: "btn btn-secondary", onClick: exportCSV, disabled: !done },
-          h(I.dl, { size: 14 }), "Exportar CSV"),
+        done > 0 && h("button", {
+          className: "btn btn-secondary",
+          onClick: exportCSV,
+          "aria-label": "Exportar resumen clínico del lote en formato CSV",
+        }, h(I.dl, { size: 14 }), "Exportar Resumen Clínico (CSV)"),
         h("button", {
           className: "btn btn-primary", onClick: run, disabled: !queued || running,
         },
@@ -202,12 +205,50 @@ export function BatchScreen({ model, threshold }) {
           h("input", {
             ref: inputRef, type: "file", multiple: true,
             accept: "image/jpeg,image/png", hidden: true,
+            "aria-label": "Seleccionar imágenes de la serie",
             onChange: (e) => acceptFiles(e.target.files || []),
           }),
           h("button", {
             className: "btn btn-ghost", style: { marginTop: 12 },
             onClick: (e) => { e.stopPropagation(); loadDemo(); },
           }, h(I.plus, { size: 14 }), "Cargar 12 imágenes de demostración"),
+        ),
+      ),
+    ),
+    total > 0 && h("div", { className: "card", style: { marginBottom: 20 } },
+      h("div", { className: "card-head" },
+        h("div", null,
+          h("h3", { className: "card-title" }, "Serie seleccionada"),
+          h("div", { className: "card-sub" },
+            total + " imagen" + (total === 1 ? "" : "es") + " en la serie" +
+            (running ? " · procesando…" : queued ? " · " + queued + " en cola" : " · serie completada")),
+        ),
+        h("span", { className: "badge badge-neutral" }, done + "/" + total),
+      ),
+      h("div", { className: "card-pad" },
+        h("ul", {
+          className: "batch-grid",
+          "aria-label": "Previsualización de las imágenes de la serie",
+        },
+          items.map((it, idx) => {
+            const estado = it.status === "done"
+              ? (it.clase === "Error" ? "error" : it.clase === "Positivo" ? "pos" : "neg")
+              : it.status;
+            return h("li", {
+              key: it.id,
+              className: "batch-cell batch-cell-" + estado,
+              title: it.name,
+            },
+              it.thumb
+                ? h("img", { src: it.thumb, alt: "", className: "batch-thumb" })
+                : h("div", { className: "batch-thumb", "aria-hidden": true }),
+              it.status === "running" && h("span", { className: "batch-overlay" },
+                h("span", { className: "spinner-sm" })),
+              h("span", { className: "batch-index" }, String(idx + 1).padStart(2, "0")),
+              it.status === "done" && h("span", { className: "batch-tag batch-tag-" + estado },
+                it.clase === "Error" ? "ERR" : it.clase === "Positivo" ? "POS" : "NEG"),
+            );
+          }),
         ),
       ),
     ),

@@ -3,10 +3,13 @@
 const React = window.React;
 const h = React.createElement;
 
-const Ico = ({ d, size = 16, sw = 1.75, kids }) =>
+// `rest` reenvia className y atributos ARIA al <svg>; sin esto las reglas
+// como `.nav-icon` nunca llegaban al icono y se perdia el color de estado.
+const Ico = ({ d, size = 16, sw = 1.75, kids, ...rest }) =>
   h(
     "svg",
     {
+      ...rest,
       width: size,
       height: size,
       viewBox: "0 0 24 24",
@@ -77,6 +80,13 @@ export const I = {
   lock: (p) => h(Ico, { ...p, kids: [
     h("rect", { key: 1, x: 3, y: 11, width: 18, height: 11, rx: 2 }),
     h("path", { key: 2, d: "M7 11V7a5 5 0 0 1 10 0v4" }),
+  ]}),
+  // Marco de captura endoscópica: placeholder cuando el estudio no conserva
+  // su imagen (el backend solo persiste metadatos).
+  scan:    (p) => h(Ico, { ...p, kids: [
+    h("path",    { key: 1, d: "M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16" }),
+    h("ellipse", { key: 2, cx: 12, cy: 12, rx: 4.2, ry: 3.4 }),
+    h("path",    { key: 3, d: "M10.4 11.2c.9-.7 2.3-.7 3.2 0" }),
   ]}),
   moon:    (p) => h(Ico, { ...p, d: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" }),
   sun:     (p) => h(Ico, { ...p, kids: [

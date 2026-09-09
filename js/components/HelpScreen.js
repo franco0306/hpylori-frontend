@@ -2,13 +2,6 @@ import { I } from "../icons.js";
 
 const h = window.React.createElement;
 
-const MODELS = [
-  { name: "ResNet50 (recomendado)", recall: "84.95 %", spec: "89.82 %", f1: "83.76 %", auc: "0.9524", threshold: "0.255" },
-  { name: "MobileNetV3",            recall: "83.82 %", spec: "87.25 %", f1: "81.83 %", auc: "0.9363", threshold: "0.350" },
-  { name: "EfficientNet-B0",        recall: "81.67 %", spec: "89.12 %", f1: "81.53 %", auc: "0.9287", threshold: "0.400" },
-  { name: "VGG16",                  recall: "63.88 %", spec: "—",       f1: "69.96 %", auc: "0.8460", threshold: "0.500" },
-];
-
 const FAQS = [
   {
     q: "¿Puedo usar EndoScan AI para diagnosticar pacientes?",
@@ -176,30 +169,36 @@ export function HelpScreen() {
     h("div", { style: { display: "grid", gap: 20 } },
 
       h("div", { className: "card card-pad" },
-        h(Section, { title: "Modelos disponibles" },
-          h("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 13 } },
-            h("thead", null,
-              h("tr", null,
-                ["Modelo", "Sensibilidad", "Especificidad", "F1", "AUC-ROC", "Umbral"].map((t) =>
-                  h("th", { key: t, style: { textAlign: "left", padding: "6px 10px", background: "var(--ink-50)", borderBottom: "2px solid var(--ink-100)", fontSize: 12, fontWeight: 600, color: "var(--ink-600)" } }, t),
-                ),
+        h(Section, { title: "Ficha técnica del motor activo" },
+          h("div", { className: "engine-card" },
+            h("div", { className: "engine-head" },
+              h("div", { className: "engine-mark", "aria-hidden": true }, h(I.cube, { size: 20 })),
+              h("div", null,
+                h("div", { className: "engine-name" }, "ResNet-50"),
+                h("div", { className: "engine-role" }, "Motor Clínico de Alta Especificidad"),
               ),
+              h("span", { className: "badge badge-info" }, "Motor único"),
             ),
-            h("tbody", null,
-              MODELS.map((m, i) =>
-                h("tr", { key: m.name, style: { background: i % 2 === 0 ? "transparent" : "var(--ink-50)" } },
-                  h("td", { style: { padding: "6px 10px", fontWeight: i === 0 ? 600 : 400, color: i === 0 ? "var(--primary)" : undefined } }, m.name),
-                  h("td", { style: { padding: "6px 10px" } }, m.recall),
-                  h("td", { style: { padding: "6px 10px" } }, m.spec),
-                  h("td", { style: { padding: "6px 10px" } }, m.f1),
-                  h("td", { style: { padding: "6px 10px" } }, m.auc),
-                  h("td", { style: { padding: "6px 10px" } }, m.threshold),
+            h("div", { className: "engine-metrics" },
+              [
+                ["Sensibilidad",  "84.95 %", "Detecta ~85 de cada 100 casos positivos"],
+                ["Especificidad", "89.82 %", "Descarta correctamente ~90 de cada 100 negativos"],
+                ["AUC-ROC",       "0.9524",  "Capacidad global de discriminación"],
+                ["Tiempo medio",  "< 200 ms", "Por imagen de luz blanca (WLI)"],
+              ].map(([label, value, hint]) =>
+                h("div", { key: label, className: "engine-metric" },
+                  h("div", { className: "engine-metric-label" }, label),
+                  h("div", { className: "engine-metric-value" }, value),
+                  h("div", { className: "engine-metric-hint" }, hint),
                 ),
               ),
             ),
           ),
-          h("p", { className: "muted", style: { marginTop: 8, fontSize: 12 } },
-            "Sensibilidad del 84.95 % implica que ~1 de cada 7 pacientes con H. pylori podría no ser detectado."),
+          h("p", { className: "muted", style: { marginTop: 12, fontSize: 12, lineHeight: 1.6 } },
+            "Métricas obtenidas sobre el conjunto de validación de imágenes endoscópicas de luz blanca. ",
+            "Una sensibilidad del 84.95 % implica que ~1 de cada 7 pacientes con H. pylori podría no ser detectado: ",
+            "un resultado negativo no descarta la infección.",
+          ),
         ),
       ),
 
@@ -211,7 +210,6 @@ export function HelpScreen() {
               ["Ir a Diagnóstico → Análisis individual",
                "Cargar imagen (JPEG/PNG, máx. 10 MB)",
                "Ingresar nombre/ID del paciente (opcional)",
-               "Seleccionar modelo de IA",
                'Clic en "Analizar imagen"',
                "Ver resultado, probabilidad y Grad-CAM",
               ].map((s, i) => h("li", { key: i }, s)),

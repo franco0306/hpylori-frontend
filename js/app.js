@@ -15,6 +15,8 @@ import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
 import { CONFIG }              from "./config.js";
 import { getInitialTheme, applyTheme, THEMES } from "./theme.js";
+import { getStoredPalette, storePalette } from "./xai.js";
+import { clearStudyMedia } from "./sessionCache.js";
 import { isAuthenticated, getUser, logout, authFetch } from "./auth.js";
 
 const React    = window.React;
@@ -35,6 +37,7 @@ function App() {
   const [user, setUser]         = useState(() => getUser());
 
   const [theme, setTheme]                 = useState(getInitialTheme);
+  const [xaiPalette, setXaiPalette]       = useState(getStoredPalette);
   const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
   const [heatmapResult, setHeatmapResult] = useState(null);
   const [screen, setScreen]               = useState("single");
@@ -45,6 +48,9 @@ function App() {
 
   const toggleTheme = () =>
     setTheme((t) => (t === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK));
+
+  // Paleta XAI: preferencia de accesibilidad, persistida en el navegador.
+  const handleChangePalette = (id) => setXaiPalette(storePalette(id));
 
   // Carga las preferencias guardadas al autenticarse.
   // `modelId` del backend se ignora deliberadamente: la UI clínica es ResNet50.
@@ -86,6 +92,7 @@ function App() {
 
   const handleLogout = () => {
     logout();
+    clearStudyMedia();   // las imágenes retenidas no sobreviven a la sesión
     setAuthed(false);
     setUser(null);
     setPrefs(DEFAULT_PREFS);
@@ -105,18 +112,21 @@ function App() {
     batch:     ["EndoScan AI", "Diagnóstico", "Procesamiento por lote"],
     history:   ["EndoScan AI", "Registros", "Historial"],
     settings:  ["EndoScan AI", "Sistema", "Configuración"],
-    help:      ["EndoScan AI", "Sistema", "Manual de usuario"],
+    manual:    ["EndoScan AI", "Sistema", "Manual de usuario"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
     switch (screen) {
-      case "dashboard": return h(Dashboard,      { onNavigate: setScreen, user });
+      case "dashboard": return h(Dashboard,      { onNavigate: setScreen, onViewHeatmap: viewHeatmap, user });
       case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap, threshold: prefs.threshold });
-      case "heatmap":   return h(HeatmapScreen,  { heatmapResult, onNewAnalysis: () => setScreen("single") });
+      case "heatmap":   return h(HeatmapScreen,  { heatmapResult, xaiPalette, onNewAnalysis: () => setScreen("single") });
       case "batch":     return h(BatchScreen,    { model, threshold: prefs.threshold });
       case "history":   return h(HistoryScreen,  { onViewHeatmap: viewHeatmap });
-      case "settings":  return h(SettingsScreen, { prefs, onSave: handleSavePrefs, theme, onToggleTheme: toggleTheme });
-      case "help":      return h(HelpScreen,     {});
+      case "settings":  return h(SettingsScreen, {
+        prefs, onSave: handleSavePrefs, theme, onToggleTheme: toggleTheme,
+        xaiPalette, onChangePalette: handleChangePalette,
+      });
+      case "manual":    return h(HelpScreen,     {});
       default:
         return h("div", { className: "content" },
           h("div", { className: "page-header" },

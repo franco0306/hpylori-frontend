@@ -1,5 +1,6 @@
 import { I } from "../icons.js";
 import { getStudies } from "../history.js";
+import { getStudyMedia } from "../sessionCache.js";
 
 const React = window.React;
 const { useState, useEffect, useMemo } = React;
@@ -18,6 +19,15 @@ function getFecha() {
   return new Date().toLocaleDateString("es-PE", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
+}
+
+// Código de caso clínico legible. El nombre de archivo crudo (p194_f020850.jpg)
+// no dice nada al gastroenterólogo; un identificador de caso sí es trazable.
+function buildCaseCode(study) {
+  const raw = String(study.id || "");
+  const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (!clean) return "Caso #HP-000000";
+  return "Caso #HP-" + clean.slice(-6).padStart(6, "0");
 }
 
 function fmtTime(iso) {
@@ -97,12 +107,12 @@ function DonutChart({ posRate, pos, neg, total }) {
 }
 
 // ── KPI con barra de progreso ─────────────────────────────────────────────────
-function KpiCard({ label, value, sub, subColor, barPct, barColor, icon }) {
+function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor }) {
   return h("div", { className: "kpi", style: { position: "relative", overflow: "hidden" } },
     // Barra de acento superior
     h("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: barColor, borderRadius: "12px 12px 0 0" } }),
     h("div", { className: "kpi-label" }, label),
-    h("div", { className: "kpi-value", style: { color: barColor !== "var(--ink-200)" ? barColor : undefined } }, value),
+    h("div", { className: "kpi-value", style: { color: valueColor || barColor } }, value),
     h("div", { className: "kpi-delta", style: { color: subColor } }, sub),
     barPct !== undefined && h("div", { style: { marginTop: 10, height: 3, background: "var(--ink-100)", borderRadius: 999 } },
       h("div", { style: { width: Math.min(100, barPct) + "%", height: "100%", background: barColor, borderRadius: 999, transition: "width 0.6s ease" } }),
@@ -111,7 +121,7 @@ function KpiCard({ label, value, sub, subColor, barPct, barColor, icon }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-export function Dashboard({ onNavigate, user }) {
+export function Dashboard({ onNavigate, onViewHeatmap, user }) {
   const [studies, setStudies] = useState([]);
 
   useEffect(() => {
@@ -122,6 +132,33 @@ export function Dashboard({ onNavigate, user }) {
 
   const stats   = useMemo(() => computeStats(studies), [studies]);
   const recent  = useMemo(() => studies.slice(0, 6), [studies]);
+
+  const handleOpenHistory = () => onNavigate("history");
+
+  // Abre la vista Grad-CAM del estudio. El historial solo conserva la
+  // miniatura, así que la pantalla avisa si el mapa ya no está disponible.
+  const handleOpenCase = (study) => {
+    if (!onViewHeatmap) return onNavigate("heatmap");   // early return
+
+    // Si el estudio se analizó en esta sesión conservamos su imagen y su mapa;
+    // si no, la pantalla Grad-CAM lo advierte en lugar de mostrar un panel roto.
+    const cached = getStudyMedia(study.id);
+
+    onViewHeatmap(
+      {
+        clase:       study.clase,
+        prob:        study.prob,
+        latencia_ms: study.latencia_ms,
+        heatmap_b64: (cached && cached.heatmap_b64) || study.heatmap_b64 || null,
+        modelo:      study.modelo,
+        timestamp:   study.timestamp,
+      },
+      {
+        src:  (cached && cached.src) || study.thumbnail || null,
+        name: buildCaseCode(study),
+      },
+    );
+  };
 
   const ACTIONS = [
     { k: "single",  icon: "upload",  color: "var(--blue-700)",  bg: "var(--blue-50)",  title: "Análisis individual" },
@@ -150,7 +187,7 @@ export function Dashboard({ onNavigate, user }) {
       h(KpiCard, {
         label: "Total de estudios", value: stats.total,
         sub: stats.today + " realizados hoy",
-        subColor: stats.today > 0 ? "#15803D" : "var(--ink-500)",
+        subColor: "var(--ink-500)",
         barColor: "#3B82F6", barPct: Math.min(100, stats.total / 2),
       }),
       h(KpiCard, {
@@ -175,8 +212,9 @@ export function Dashboard({ onNavigate, user }) {
           ? h("span", null, stats.avgLat, h("small", null, " ms"))
           : "—",
         sub: "tiempo medio de respuesta",
-        subColor: parseInt(stats.avgLat) < 2000 ? "#15803D" : "#DC2626",
-        barColor: parseInt(stats.avgLat) < 2000 ? "#16A34A" : "#DC2626",
+        subColor: "var(--ink-500)",
+        valueColor: "var(--blue-700)",
+        barColor: "var(--blue-700)",
         barPct: Math.max(0, 100 - (parseInt(stats.avgLat || 0) / 20)),
       }),
     ),
@@ -220,36 +258,47 @@ export function Dashboard({ onNavigate, user }) {
             className: "btn btn-ghost",
             style: { fontSize: 12 },
             onClick: () => onNavigate("history"),
+            "aria-label": "Ver todo el historial de estudios",
           }, "Ver todos →"),
         ),
         recent.length === 0
           ? h("div", { style: { padding: "32px 20px", textAlign: "center", color: "var(--ink-400)", fontSize: 13 } },
               "Aún no hay estudios. Realiza tu primer análisis.")
           : h("div", null,
-              recent.map((s, idx) => {
-                const isPos = s.clase === "Positivo";
-                return h("div", {
-                  key: s.id,
-                  style: {
-                    display: "flex", alignItems: "center", gap: 12, padding: "10px 16px",
-                    borderTop: idx > 0 ? "1px solid var(--ink-100)" : "none",
-                    cursor: "pointer",
-                  },
-                  onClick: () => onNavigate("history"),
+              recent.map((study) => {
+                const isPos    = study.clase === "Positivo";
+                const caseCode = buildCaseCode(study);
+                const paciente = (study.paciente || "").trim();
+
+                return h("button", {
+                  key: study.id,
+                  type: "button",
+                  className: "study-row",
+                  onClick: () => handleOpenCase(study),
+                  "aria-label": "Abrir Grad-CAM de " + caseCode + " · " + (isPos ? "positivo" : "negativo"),
                 },
-                  s.thumbnail
-                    ? h("img", { src: s.thumbnail, style: { width: 44, height: 33, borderRadius: 4, objectFit: "cover", flexShrink: 0, border: "1px solid var(--ink-200)" }, alt: "" })
-                    : h("div", { style: { width: 44, height: 33, borderRadius: 4, background: "var(--ink-100)", flexShrink: 0 } }),
-                  h("div", { style: { flex: 1, minWidth: 0 } },
-                    h("div", { style: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.fileName),
-                    h("div", { style: { fontSize: 11, color: "var(--ink-400)", marginTop: 1 } },
-                      fmtTime(s.timestamp)),
+                  study.thumbnail
+                    ? h("img", { className: "study-thumb", src: study.thumbnail, alt: "" })
+                    : h("div", {
+                        className: "study-thumb study-thumb-empty",
+                        role: "img",
+                        "aria-label": "Estudio sin imagen conservada",
+                        title: "La imagen no se conserva tras cerrar la sesión",
+                      }, h(I.scan, { size: 16, "aria-hidden": true })),
+
+                  h("div", { className: "study-meta" },
+                    h("div", { className: "study-code" }, caseCode),
+                    h("div", { className: "study-sub" },
+                      paciente ? paciente + " · " + fmtTime(study.timestamp) : fmtTime(study.timestamp)),
                   ),
-                  h("div", { style: { textAlign: "right", flexShrink: 0 } },
+
+                  h("div", { className: "study-result" },
                     h("span", { className: "badge " + (isPos ? "badge-pos" : "badge-neg") },
-                      isPos ? "POS" : "NEG"),
-                    h("div", { style: { fontSize: 11, fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, marginTop: 3, color: isPos ? "#DC2626" : "#16A34A" } },
-                      (s.prob * 100).toFixed(1) + "%"),
+                      isPos ? "POSITIVO" : "NEGATIVO"),
+                    h("div", {
+                      className: "study-prob",
+                      style: { color: isPos ? "var(--red-600)" : "var(--green-600)" },
+                    }, (study.prob * 100).toFixed(1) + "%"),
                   ),
                 );
               }),

@@ -43,8 +43,18 @@ export async function saveStudy(result, paciente = "") {
   });
 
   if (!res.ok) {
+    // Se arrastra el motivo del servidor: "no se guardó" sin decir por qué
+    // obliga a abrir las herramientas del navegador para averiguarlo.
+    const cuerpo = await res.json().catch(() => ({}));
+    const detail = cuerpo && cuerpo.detail;
+
     const fallo = new Error("HTTP_" + res.status);
     fallo.estado = res.status;
+    fallo.detalle = typeof detail === "string"
+      ? detail
+      : Array.isArray(detail) && detail.length
+        ? String((detail[0] && detail[0].msg) || "").replace(/^Value error,\s*/i, "")
+        : null;
     throw fallo;
   }
   return res.json();

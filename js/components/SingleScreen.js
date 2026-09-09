@@ -20,7 +20,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [patientName, setPatientName] = useState("");   // nombre/ID del paciente (opcional)
   // El guardado en el historial no puede fallar en silencio: el médico tiene
   // que saber que ese análisis no quedó registrado.
-  const [historialFallo, setHistorialFallo] = useState(false);
+  const [historialFallo, setHistorialFallo] = useState(null);   // { estado, detalle }
   const inputRef = useRef(null);
 
   const accept = (f) => {
@@ -59,18 +59,25 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
       // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
       // persiste metadatos, así que esta es la única copia mientras dure la sesión.
-      setHistorialFallo(false);
+      setHistorialFallo(null);
       saveStudy(res, patientName)
         .then((saved) => {
           if (!saved || !saved.id) return;   // early return
-          cacheStudyMedia(saved.id, {
-            src: file.src,
-            heatmap_b64: res.heatmap_b64 || null,
-            name: file.name,
-          });
+          // La caché de sesión es accesoria: si falla no debe hacerse pasar por
+          // un fallo de guardado, que es un aviso mucho más grave.
+          try {
+            cacheStudyMedia(saved.id, {
+              src: file.src,
+              heatmap_b64: res.heatmap_b64 || null,
+              name: file.name,
+            });
+          } catch { /* noop */ }
         })
         // El historial nunca bloquea el diagnóstico, pero su fallo se avisa.
-        .catch(() => setHistorialFallo(true));
+        .catch((err) => setHistorialFallo({
+          estado: err && err.estado,
+          detalle: (err && err.detalle) || null,
+        }));
     } catch (e) {
       clearInterval(iv); setPhase("error");
       setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
@@ -81,7 +88,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
 
   const reset = () => {
     setFile(null); setResult(null); setPhase("idle");
-    setProgress(0); setError(null); setPatientName(""); setHistorialFallo(false);
+    setProgress(0); setError(null); setPatientName(""); setHistorialFallo(null);
   };
 
   const downloadReport = async () => {
@@ -484,6 +491,13 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 h("strong", null, "Este análisis no se guardó en el historial. "),
                 "El resultado que ve en pantalla es válido, pero no quedará registrado ",
                 "en el expediente. Descargue el informe si necesita conservarlo.",
+                (historialFallo.detalle || historialFallo.estado) && h("div", {
+                  style: { marginTop: 6, fontSize: 12 },
+                },
+                  h("strong", null, "Motivo: "),
+                  historialFallo.detalle ||
+                    ("el servidor respondió HTTP " + historialFallo.estado),
+                ),
               ),
             ),
             positive && h("div", { className: "alert alert-warn", style: { marginTop: 14 } },

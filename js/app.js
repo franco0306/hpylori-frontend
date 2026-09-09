@@ -149,7 +149,6 @@ function App() {
     manual:    ["EndoScan AI", "Sistema", "Manual de usuario"],
     "admin":           ["EndoScan AI", "Administración", "Panel Admin"],
     "admin-auditoria": ["EndoScan AI", "Administración", "Auditoría y Cuotas"],
-    "admin-config":    ["EndoScan AI", "Administración", "Configuración Global"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
@@ -168,8 +167,7 @@ function App() {
       // El acceso real debe validarlo el backend en cada endpoint /admin/*;
       // esta comprobación solo evita mostrar la pantalla por error.
       case "admin":
-      case "admin-auditoria":
-      case "admin-config": {
+      case "admin-auditoria": {
         if (getRole(user) !== ROLES.ADMIN) {
           return h("div", { className: "content" },
             h("div", { className: "page-header" },
@@ -180,10 +178,10 @@ function App() {
               h("div", { className: "muted" }, "Su cuenta no tiene permisos de administración.")),
           );
         }
-        const section = screen === "admin-auditoria" ? "auditoria"
-                      : screen === "admin-config"    ? "config"
-                      : "panel";
-        return h(AdminScreen, { section, user, prefs, onSavePrefs: handleSavePrefs });
+        // El umbral vive solo en Configuración: el panel administra el sistema,
+        // no calibra el diagnóstico.
+        const section = screen === "admin-auditoria" ? "auditoria" : "panel";
+        return h(AdminScreen, { section, user });
       }
       default:
         return h("div", { className: "content" },

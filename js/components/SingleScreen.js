@@ -18,6 +18,9 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [result,      setResult]      = useState(null);
   const [error,       setError]       = useState(null);
   const [patientName, setPatientName] = useState("");   // nombre/ID del paciente (opcional)
+  // El guardado en el historial no puede fallar en silencio: el médico tiene
+  // que saber que ese análisis no quedó registrado.
+  const [historialFallo, setHistorialFallo] = useState(false);
   const inputRef = useRef(null);
 
   const accept = (f) => {
@@ -56,7 +59,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
       // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
       // persiste metadatos, así que esta es la única copia mientras dure la sesión.
-      saveStudy(file, res, patientName)
+      setHistorialFallo(false);
+      saveStudy(res, patientName)
         .then((saved) => {
           if (!saved || !saved.id) return;   // early return
           cacheStudyMedia(saved.id, {
@@ -65,7 +69,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
             name: file.name,
           });
         })
-        .catch(() => { /* el historial es accesorio: nunca bloquea el diagnóstico */ });
+        // El historial nunca bloquea el diagnóstico, pero su fallo se avisa.
+        .catch(() => setHistorialFallo(true));
     } catch (e) {
       clearInterval(iv); setPhase("error");
       setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
@@ -76,7 +81,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
 
   const reset = () => {
     setFile(null); setResult(null); setPhase("idle");
-    setProgress(0); setError(null); setPatientName("");
+    setProgress(0); setError(null); setPatientName(""); setHistorialFallo(false);
   };
 
   const downloadReport = async () => {
@@ -468,6 +473,18 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                   className: "metric-value",
                   style: { color: result.latencia_ms < 2000 ? "var(--ink-900)" : "var(--red-600)" },
                 }, fmtLatencia(result.latencia_ms), h("small", null, "ms"))),
+            ),
+            historialFallo && h("div", {
+              className: "alert alert-warn",
+              style: { marginTop: 14 },
+              role: "status",
+            },
+              h(I.alert, { size: 16 }),
+              h("div", null,
+                h("strong", null, "Este análisis no se guardó en el historial. "),
+                "El resultado que ve en pantalla es válido, pero no quedará registrado ",
+                "en el expediente. Descargue el informe si necesita conservarlo.",
+              ),
             ),
             positive && h("div", { className: "alert alert-warn", style: { marginTop: 14 } },
               h(I.info, { size: 16 }),

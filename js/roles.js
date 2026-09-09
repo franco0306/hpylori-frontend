@@ -5,9 +5,9 @@
 // herramientas de desarrollo y ver el panel de administración. Su función aquí
 // es organizar la interfaz, no proteger datos.
 //
-// La autorización real debe vivir en el backend: cada endpoint de /admin/*
-// tiene que verificar el rol contra la base de datos antes de responder. Hasta
-// que exista esa comprobación, el panel solo oculta accesos, no los cierra.
+// La autorización real vive en el backend: la dependencia `require_admin`
+// relee el rol de la base de datos en cada petición a /admin/*, así que un rol
+// falsificado en el navegador enseña el menú pero no obtiene ningún dato.
 
 import { getUser } from "./auth.js";
 

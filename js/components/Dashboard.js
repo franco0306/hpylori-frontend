@@ -107,7 +107,9 @@ function DonutChart({ posRate, pos, neg, total }) {
 }
 
 // ── KPI con barra de progreso ─────────────────────────────────────────────────
-function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor }) {
+// Exportado: el Panel de Administración usa la misma tarjeta para sus métricas
+// de gobernanza, de modo que ambas pantallas comparten aspecto y tokens.
+export function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor }) {
   return h("div", { className: "kpi", style: { position: "relative", overflow: "hidden" } },
     // Barra de acento superior
     h("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: barColor, borderRadius: "12px 12px 0 0" } }),

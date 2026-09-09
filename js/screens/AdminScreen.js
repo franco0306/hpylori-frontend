@@ -1,105 +1,255 @@
 // Panel de administración técnica.
 //
 // Solo visible para cuentas con rol `admin`. Reúne lo que el gastroenterólogo
-// no debe tocar: calibración del motor, salud del almacenamiento y cuentas.
+// no debe tocar: la salud del almacenamiento y la gestión de las cuentas.
 //
-// NOTA DE INTEGRACIÓN — el backend todavía no expone endpoints de
-// administración (`/admin/users`, `/admin/storage`, `/admin/maintenance/purge`).
-// Cada módulo los consulta y, si no existen, muestra el estado real de esa
-// carencia en lugar de inventar cifras: un panel de administración que enseña
-// datos ficticios es peor que uno vacío.
+// El umbral de decisión NO vive aquí. Está en Configuración, explicado en
+// términos clínicos y con sus consecuencias. Dos controles del mismo valor
+// acaban contradiciéndose, y el que gana suele ser el que menos se entiende.
 
 import { I } from "../icons.js";
 import { CONFIG } from "../config.js";
 import { authFetch } from "../auth.js";
-import { getStudies } from "../history.js";
+import { fmtLatencia } from "../format.js";
+import { KpiCard } from "../components/Dashboard.js";
+import { ESTADOS, useServiceStatus } from "../health.js";
 import { ROLES, ROLE_LABEL, normalizeRole } from "../roles.js";
 
 const React = window.React;
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 const h = React.createElement;
 
-// Tamaño medio por fila del esquema finito de `studies`:
-// uuid(36) + user_id(4) + created_at(8) + clase(16) + probabilidad(8) +
-// latencia_ms(8) + paciente_id(64), más índices y sobrecarga de página.
-const BYTES_POR_ESTUDIO = 200;
+const CUOTA_BYTES = 500 * 1024 * 1024;      // plan de referencia de Supabase
 
-// Cuota del plan gratuito de Supabase, usada como referencia del consumo.
-const CUOTA_BYTES = 500 * 1024 * 1024;
+// Latencia por encima de la cual el análisis deja de sentirse inmediato en
+// consulta. Es un objetivo de servicio, no el umbral de decisión clínica.
+const OBJETIVO_LATENCIA_MS = 2000;
 
-const UMBRAL_POR_DEFECTO = 0.5;
+// Desde aquí se avisa de que el servidor puede estar reactivándose: un Space en
+// reposo tarda cerca de un minuto en volver, y una pantalla quieta todo ese
+// rato parece rota.
+const TIEMPO_AVISO_MS = 6000;
+
+// Longitud mínima de contraseña. Debe coincidir con MIN_PASSWORD_LEN del
+// backend: si divergen, el formulario aceptaría algo que el servidor rechaza.
+const MIN_CLAVE = 8;
+
+/**
+ * Traduce un fallo en una causa concreta.
+ *
+ * Un `catch` mudo obliga al administrador a adivinar, y lo primero que adivina
+ * es que le han retirado los permisos —que casi nunca es lo que ha pasado—.
+ * El 401 no llega hasta aquí: `authFetch` cierra la sesión y recarga.
+ */
+function describirFallo(error) {
+  const estado = error && error.estado;
+
+  if (estado === 403) {
+    return "Su cuenta ya no tiene permisos de administrador. Cierre sesión y vuelva a entrar.";
+  }
+  if (estado === 429) {
+    return "Se superó el límite de 30 solicitudes por minuto. Espere unos segundos y reintente.";
+  }
+  if (estado >= 500) {
+    return "El servidor respondió con un error (HTTP " + estado + "). Reintente en unos momentos.";
+  }
+  if (error && error.name === "AbortError") {
+    return "El servidor no respondió a tiempo. Si el servicio estuvo inactivo puede " +
+           "tardar en reactivarse: reintente en un momento.";
+  }
+  return "No se pudo contactar con el servidor. Compruebe su conexión a internet y reintente.";
+}
+
+/**
+ * Mensaje legible del `detail` de FastAPI, que llega como texto o como lista de
+ * errores de validación. Sin esto, un "ese correo ya existe" se degradaría al
+ * mensaje genérico de conexión y el administrador no sabría qué corregir.
+ */
+function detalleDeApi(cuerpo) {
+  const detail = cuerpo && cuerpo.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length) {
+    const msg = (detail[0] && detail[0].msg) || "";
+    return msg.replace(/^Value error,\s*/i, "") || null;
+  }
+  return null;
+}
+
+/** Envía JSON y devuelve la respuesta, con el motivo del servidor si falla. */
+async function enviarJson(ruta, metodo, cuerpo) {
+  const res = await authFetch(ruta, {
+    method: metodo,
+    headers: { "Content-Type": "application/json" },
+    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+  });
+  const datos = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const fallo = new Error("HTTP_" + res.status);
+    fallo.estado = res.status;
+    fallo.detalle = detalleDeApi(datos);
+    throw fallo;
+  }
+  return datos;
+}
+
+/** `authFetch` que devuelve JSON o lanza un error con el código de estado adjunto. */
+async function pedirJson(ruta, signal) {
+  const res = await authFetch(ruta, { signal });
+  if (!res.ok) {
+    const fallo = new Error("HTTP_" + res.status);
+    fallo.estado = res.status;
+    throw fallo;
+  }
+  return res.json();
+}
 
 function fmtBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "—";
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / 1024 / 1024).toFixed(2) + " MB";
 }
 
-// ── Módulo: calibración del umbral global ────────────────────────────────────
-function CalibracionUmbral({ umbral, onChange, onSave, guardando, guardado, error }) {
-  return h("div", { className: "card card-pad" },
-    h("div", { className: "section-title" }, "Calibración del umbral operativo"),
-    h("p", { style: { fontSize: 13, color: "var(--ink-600)", marginTop: 0, marginBottom: 18, lineHeight: 1.6 } },
-      "Punto de corte con el que el motor ResNet-50 decide marcar una imagen como ",
-      "sospechosa. Es el valor con el que opera el sistema de forma autónoma cuando ",
-      "el profesional no fija uno propio.",
-    ),
+// ── Fechas ───────────────────────────────────────────────────────────────────
+// `Intl` abrevia septiembre como "sept." en es-PE; la convención del proyecto
+// es "set". Con tres letras fijas la columna nunca descuadra.
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun",
+               "jul", "ago", "set", "oct", "nov", "dic"];
 
-    h("div", { className: "row between", style: { marginBottom: 10 } },
-      h("label", { htmlFor: "admin-umbral", style: { fontSize: 12.5, color: "var(--ink-600)" } },
-        "Umbral operativo"),
-      h("span", { className: "mono", style: { fontSize: 24, fontWeight: 700, color: "var(--blue-700)" } },
-        umbral.toFixed(2)),
-    ),
+// El backend serializa UTC sin sufijo de zona. Sin la "Z" el navegador lo
+// interpretaría como hora local y la última conexión aparecería desplazada
+// cinco horas en Perú.
+function aFecha(iso) {
+  const texto = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z";
+  return new Date(texto);
+}
 
-    h("input", {
-      id: "admin-umbral",
-      className: "slider",
-      type: "range",
-      min: "0.10", max: "0.90", step: "0.05",
-      value: umbral,
-      onChange: (e) => onChange(Number(e.target.value)),
-      "aria-label": "Umbral operativo global del motor ResNet-50",
-      "aria-valuetext": umbral.toFixed(2),
-      style: { marginBottom: 10 },
+function fmtFechaHora(iso) {
+  if (!iso) return null;
+  const d = aFecha(iso);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const dia = String(d.getDate()).padStart(2, "0");
+  const crudas = d.getHours();
+  const meridiano = crudas < 12 ? "a. m." : "p. m.";
+  const horas = String(crudas % 12 || 12).padStart(2, "0");
+  const minutos = String(d.getMinutes()).padStart(2, "0");
+
+  return dia + "-" + MESES[d.getMonth()] + "-" + d.getFullYear() +
+         " " + horas + ":" + minutos + " " + meridiano;
+}
+
+function iniciales(fila) {
+  const fuente = (fila && (fila.name || fila.full_name || fila.email)) || "";
+  const partes = fuente.trim().split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return (fuente.slice(0, 2) || "?").toUpperCase();
+}
+
+// ── Módulo: KPIs de gobernanza ───────────────────────────────────────────────
+// Cifras de cabecera del servicio, no del diagnóstico. Reutilizan la tarjeta
+// `KpiCard` del panel clínico para que ambas pantallas se lean igual.
+function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) {
+  const medicos = usuarios.filter((u) => normalizeRole(u.role) === ROLES.MEDICO).length;
+  const admins = usuarios.length - medicos;
+  const plural = (n, singular, plurales) => n + " " + (n === 1 ? singular : plurales);
+
+  const media = almacenamiento && almacenamiento.latencia_media_ms;
+  const hayMedia = typeof media === "number";
+  const dentroDeObjetivo = hayMedia && media < OBJETIVO_LATENCIA_MS;
+  const colorLatencia = !hayMedia
+    ? "var(--ink-400)"
+    : dentroDeObjetivo ? "var(--green-600)" : "var(--amber-600)";
+
+  // Un servidor sin desplegar aún no devuelve el campo. No es lo mismo que
+  // devolverlo vacío, y decir "no hay estudios" en ese caso sería falso.
+  const campoAusente = Boolean(almacenamiento) && !("latencia_media_ms" in almacenamiento);
+  const subLatencia = hayMedia
+    ? "Objetivo clínico < 2.0 s"
+    : campoAusente ? "El servidor aún no informa esta métrica"
+                   : "Aún no hay estudios registrados";
+
+  const online = estadoServicio === ESTADOS.ONLINE;
+  const comprobando = estadoServicio === ESTADOS.COMPROBANDO;
+  const claseEstado = comprobando ? " pill-estado-wait" : online ? "" : " pill-estado-off";
+  const textoEstado = comprobando ? "Comprobando…" : online ? "Operativo" : "Sin conexión";
+
+  return h("div", { className: "kpi-grid", style: { marginBottom: 20 } },
+    h(KpiCard, {
+      label: "Cuentas registradas",
+      value: cargando ? "…" : usuarios.length,
+      sub: cargando
+        ? "Consultando…"
+        : plural(medicos, "médico", "médicos") + " · " + plural(admins, "admin", "admins"),
+      barColor: "var(--blue-700)",
     }),
 
-    h("div", { className: "row between", style: { fontSize: 11, color: "var(--ink-400)", marginBottom: 16 } },
-      h("span", null, "0.10 · detecta más"),
-      h("span", null, "0.50 · por defecto"),
-      h("span", null, "0.90 · exige más certeza"),
-    ),
+    h(KpiCard, {
+      label: "Estudios clínicos",
+      value: cargando ? "…" : almacenamiento ? almacenamiento.estudios : "—",
+      sub: "Registros procesados",
+      barColor: "var(--ink-700)",
+      valueColor: "var(--ink-900)",
+    }),
 
-    h("div", { className: "alert alert-info", style: { marginBottom: 16 } },
-      h(I.info, { size: 14 }),
-      h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
-        "El motor se validó con un punto de corte de 0.255. Alejarse de él desplaza ",
-        "la sensibilidad y la especificidad respecto de las cifras publicadas.",
+    h(KpiCard, {
+      label: "Inferencia promedio",
+      value: cargando ? "…" : hayMedia ? fmtLatencia(media) + " ms" : "—",
+      // Sin datos no se inventa una cifra: se dice por qué no la hay.
+      sub: subLatencia,
+      barColor: colorLatencia,
+      valueColor: colorLatencia,
+    }),
+
+    h(KpiCard, {
+      label: "Disponibilidad del motor",
+      // Estado medido por la sonda, no una cifra de tiempo de servicio: nadie
+      // registra el histórico de caídas, así que el 99.9 % va como objetivo.
+      value: h("span", {
+        className: "pill-estado" + claseEstado,
+        style: { fontSize: 13, fontFamily: "inherit", letterSpacing: 0 },
+      },
+        h("span", {
+          className: "dot" + (comprobando ? " dot-checking" : online ? "" : " dot-offline"),
+          "aria-hidden": true,
+        }),
+        textoEstado,
       ),
-    ),
-
-    error && h("div", { className: "alert alert-error", style: { marginBottom: 12 } },
-      h(I.alert, { size: 14 }),
-      h("div", { style: { fontSize: 12.5 } }, error),
-    ),
-
-    h("button", {
-      className: "btn btn-primary",
-      onClick: onSave,
-      disabled: guardando,
-      "aria-label": "Guardar el umbral operativo",
-    },
-      guardando ? h("span", { className: "spinner-sm" }) : h(I.check, { size: 14 }),
-      guardando ? "Guardando…" : guardado ? "Guardado" : "Guardar calibración",
-    ),
+      sub: "Motor en Hugging Face · Objetivo 99.9 %",
+      barColor: comprobando ? "var(--ink-400)" : online ? "var(--green-600)" : "var(--red-600)",
+    }),
   );
 }
 
 // ── Módulo: auditoría de base de datos y almacenamiento ──────────────────────
-function AuditoriaAlmacenamiento({ total, cargando, purgando, purgaResultado, onPurgar }) {
-  const bytes = total * BYTES_POR_ESTUDIO;
-  const consumo = Math.min(100, (bytes / CUOTA_BYTES) * 100);
+function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
+                                   purgando, purgaResultado, onPurgar }) {
+  const bytes = datos ? datos.bytes_usados : 0;
+  const cuota = (datos && datos.bytes_cuota) || CUOTA_BYTES;
+  const consumo = Math.min(100, (bytes / cuota) * 100);
   const consumoTexto = consumo < 0.01 && bytes > 0 ? "< 0.01" : consumo.toFixed(2);
+  const estimado = Boolean(datos && datos.estimado);
+
+  // Sin datos no se pinta un cero: un cero se lee como "no hay nada guardado",
+  // que es una afirmación distinta de "no se pudo consultar".
+  const valor = (contenido) => (cargando ? "…" : datos ? contenido : "—");
+
+  if (error && !cargando) {
+    return h("div", { className: "card card-pad" },
+      h("div", { className: "section-title" }, "Auditoría de base de datos y almacenamiento"),
+      h("div", { className: "alert alert-error", role: "status" },
+        h(I.alert, { size: 14 }),
+        h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } }, error),
+      ),
+      h("button", {
+        className: "btn btn-secondary",
+        style: { marginTop: 14 },
+        onClick: onReintentar,
+        "aria-label": "Reintentar la consulta de almacenamiento",
+      }, h(I.refresh, { size: 14 }), "Reintentar"),
+    );
+  }
 
   return h("div", { className: "card card-pad" },
     h("div", { className: "section-title" }, "Auditoría de base de datos y almacenamiento"),
@@ -107,32 +257,38 @@ function AuditoriaAlmacenamiento({ total, cargando, purgando, purgaResultado, on
     h("div", { className: "admin-metrics" },
       h("div", { className: "admin-metric" },
         h("div", { className: "admin-metric-label" }, "Estudios registrados"),
-        h("div", { className: "admin-metric-value" }, cargando ? "…" : total),
+        h("div", { className: "admin-metric-value" }, valor(datos && datos.estudios)),
         h("div", { className: "admin-metric-hint" }, "Filas en la tabla de estudios"),
       ),
       h("div", { className: "admin-metric" },
-        h("div", { className: "admin-metric-label" }, "Almacenamiento estimado"),
-        h("div", { className: "admin-metric-value" }, cargando ? "…" : fmtBytes(bytes)),
-        h("div", { className: "admin-metric-hint" }, "≈ 200 B por estudio (solo metadatos)"),
+        h("div", { className: "admin-metric-label" }, "Almacenamiento ocupado"),
+        h("div", { className: "admin-metric-value" }, valor(fmtBytes(bytes))),
+        h("div", { className: "admin-metric-hint" },
+          estimado ? "≈ 200 B por estudio (estimado)" : "Tamaño real de la tabla"),
       ),
       h("div", { className: "admin-metric" },
         h("div", { className: "admin-metric-label" }, "Cuota consumida"),
-        h("div", { className: "admin-metric-value" }, cargando ? "…" : consumoTexto + " %"),
-        h("div", { className: "admin-metric-hint" }, "Sobre 500 MB del plan"),
+        h("div", { className: "admin-metric-value" }, valor(consumoTexto + " %")),
+        h("div", { className: "admin-metric-hint" }, "Sobre " + fmtBytes(cuota) + " del plan"),
       ),
     ),
 
-    h("div", { className: "admin-quota", role: "img", "aria-label": "Cuota consumida: " + consumoTexto + " por ciento" },
+    h("div", {
+      className: "admin-quota",
+      role: "img",
+      "aria-label": "Cuota consumida: " + consumoTexto + " por ciento",
+    },
       h("div", { className: "admin-quota-fill", style: { width: Math.max(0.6, consumo) + "%" } }),
     ),
 
-    h("div", { className: "alert alert-info", style: { marginTop: 16 } },
+    // El aviso aparece solo cuando las cifras son de verdad estimadas: en
+    // PostgreSQL el servidor devuelve el tamaño real de la tabla.
+    estimado && !cargando && h("div", { className: "alert alert-info", style: { marginTop: 16 } },
       h(I.info, { size: 14 }),
       h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
         h("strong", null, "Cifras estimadas. "),
-        "Se calculan desde el número de estudios visibles y el tamaño conocido del ",
-        "esquema. Para lecturas exactas hace falta que el backend exponga ",
-        h("code", null, "/admin/storage"), ".",
+        "El motor de base de datos no informa el tamaño real de la tabla, así que ",
+        "se calcula desde el número de estudios y el tamaño conocido del esquema.",
       ),
     ),
 
@@ -158,120 +314,880 @@ function AuditoriaAlmacenamiento({ total, cargando, purgando, purgaResultado, on
   );
 }
 
+// ── Modal: restablecer contraseña ────────────────────────────────────────────
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), ' +
+  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Confina el tabulador dentro del diálogo: el fondo está bloqueado. */
+function atraparFoco(e, contenedor) {
+  if (e.key !== "Tab" || !contenedor) return;   // early return
+
+  const items = Array.from(contenedor.querySelectorAll(FOCUSABLE));
+  if (!items.length) return;
+
+  const inicio = items[0];
+  const fin = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === inicio) {
+    e.preventDefault();
+    fin.focus();
+  } else if (!e.shiftKey && document.activeElement === fin) {
+    e.preventDefault();
+    inicio.focus();
+  }
+}
+
+function ModalRestablecer({ fila, estado, error, onConfirmar, onCerrar }) {
+  const dialogRef = useRef(null);
+  const [clave, setClave] = useState("");
+  const [confirmacion, setConfirmacion] = useState("");
+  const [verClave, setVerClave] = useState(false);
+
+  // Foco inicial, confinamiento del tabulador y devolución del foco al cerrar.
+  useEffect(() => {
+    const previo = document.activeElement;
+    const primero = dialogRef.current && dialogRef.current.querySelector(FOCUSABLE);
+    if (primero) primero.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCerrar();
+        return;
+      }
+      atraparFoco(e, dialogRef.current);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (previo && previo.focus) previo.focus();
+    };
+  }, [onCerrar]);
+
+  const nombre = fila.name || fila.full_name || fila.email;
+  const listo = estado === "listo";
+  const enviando = estado === "enviando";
+
+  const corta = clave.length > 0 && clave.length < MIN_CLAVE;
+  const noCoincide = confirmacion.length > 0 && clave !== confirmacion;
+  const valida = clave.length >= MIN_CLAVE && clave === confirmacion;
+
+  // El aviso aparece solo cuando el campo implicado ya tiene contenido: avisar
+  // de que "es corta" sobre un campo vacío es ruido, no ayuda.
+  const problema = corta
+    ? "La contraseña debe tener al menos " + MIN_CLAVE + " caracteres."
+    : noCoincide ? "Las dos contraseñas no coinciden." : null;
+
+  const handleEnviar = (e) => {
+    e.preventDefault();
+    if (!valida || enviando) return;   // early return
+    onConfirmar(clave);
+  };
+
+  const campo = (id, etiqueta, valor, alCambiar, describedBy) => [
+    h("label", { key: id + "-l", className: "auth-label", htmlFor: id }, etiqueta),
+    h("input", {
+      key: id,
+      id,
+      className: "input",
+      style: { width: "100%", marginBottom: 14 },
+      // Un gestor de contraseñas no debe autorrellenar la clave del admin aquí.
+      type: verClave ? "text" : "password",
+      value: valor,
+      onChange: (e) => alCambiar(e.target.value),
+      autoComplete: "new-password",
+      required: true,
+      "aria-describedby": describedBy,
+    }),
+  ];
+
+  return h("div", { className: "modal-backdrop" },
+    h("form", {
+      className: "modal",
+      style: { maxWidth: 480 },
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "reset-titulo",
+      ref: dialogRef,
+      onSubmit: handleEnviar,
+    },
+      h("div", { className: "modal-head" },
+        h("div", { className: "modal-mark" }, h(I.lock, { size: 18 })),
+        h("div", null,
+          h("h2", { className: "modal-title", id: "reset-titulo" },
+            listo ? "Contraseña actualizada" : "Cambiar contraseña"),
+          h("div", { className: "modal-sub" }, nombre + " · " + fila.email),
+        ),
+        h("button", {
+          type: "button",
+          className: "btn btn-ghost btn-icon",
+          onClick: onCerrar,
+          "aria-label": "Cerrar el diálogo",
+        }, h(I.x, { size: 16 })),
+      ),
+
+      h("div", { className: "modal-body" },
+        !listo && h("div", null,
+          h("p", null,
+            "Defina la nueva contraseña de ", h("strong", null, nombre),
+            ". La anterior dejará de servir de inmediato, y tendrá que ",
+            "comunicarle la nueva por un canal seguro: el sistema no envía correos.",
+          ),
+
+          ...campo("reset-clave", "Nueva contraseña", clave, setClave, "reset-requisito"),
+          ...campo("reset-confirmar", "Confirmar contraseña", confirmacion, setConfirmacion),
+
+          h("label", {
+            className: "row",
+            style: { gap: 8, fontSize: 12.5, color: "var(--ink-600)", cursor: "pointer" },
+          },
+            h("input", {
+              type: "checkbox",
+              checked: verClave,
+              onChange: (e) => setVerClave(e.target.checked),
+            }),
+            "Mostrar contraseñas",
+          ),
+
+          h("div", {
+            id: "reset-requisito",
+            style: { fontSize: 11.5, color: "var(--ink-500)", marginTop: 10 },
+          }, "Mínimo " + MIN_CLAVE + " caracteres."),
+
+          problema && h("div", {
+            className: "alert alert-error",
+            style: { marginTop: 12 },
+            role: "status",
+          },
+            h(I.alert, { size: 14 }),
+            h("div", { style: { fontSize: 12.5 } }, problema),
+          ),
+        ),
+
+        error && h("div", { className: "alert alert-error", style: { marginTop: 12 } },
+          h(I.alert, { size: 14 }),
+          h("div", { style: { fontSize: 12.5 } }, error),
+        ),
+
+        listo && h("div", { "aria-live": "polite" },
+          h("div", { className: "alert alert-info" },
+            h(I.check, { size: 14 }),
+            h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
+              "La contraseña de ", h("strong", null, fila.email),
+              " quedó actualizada. Solo servirá la nueva para iniciar sesión.",
+            ),
+          ),
+          h("div", { className: "alert alert-warn", style: { marginTop: 12 } },
+            h(I.alert, { size: 14 }),
+            h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
+              "Cambiar la contraseña no cierra las sesiones que ya estén abiertas. ",
+              "Si sospecha de un acceso indebido, deshabilite y vuelva a habilitar ",
+              "la cuenta: eso sí invalida sus tokens.",
+            ),
+          ),
+        ),
+      ),
+
+      h("div", { className: "modal-foot" },
+        h("div", { className: "modal-actions", style: { marginTop: 0 } },
+          listo
+            ? h("button", {
+                type: "button", className: "btn btn-primary", onClick: onCerrar,
+              }, "Entendido")
+            : [
+                h("button", {
+                  key: "cancelar",
+                  type: "button",
+                  className: "btn btn-secondary",
+                  onClick: onCerrar,
+                  disabled: enviando,
+                }, "Cancelar"),
+                h("button", {
+                  key: "confirmar",
+                  type: "submit",
+                  className: "btn btn-primary",
+                  disabled: enviando || !valida,
+                },
+                  enviando ? h("span", { className: "spinner-sm" }) : h(I.lock, { size: 14 }),
+                  enviando ? "Guardando…" : "Cambiar contraseña",
+                ),
+              ],
+        ),
+      ),
+    ),
+  );
+}
+
+
+// ── Menú de acciones por cuenta (kebab) ──────────────────────────────────────
+function MenuAcciones({ fila, abierto, esPropio, onAlternar, onCerrar,
+                        onEditar, onClave, onEstado, onEliminar }) {
+  const contenedor = useRef(null);
+
+  useEffect(() => {
+    if (!abierto) return undefined;
+
+    const handleFuera = (e) => {
+      if (contenedor.current && !contenedor.current.contains(e.target)) onCerrar();
+    };
+    const handleTecla = (e) => {
+      if (e.key !== "Escape") return;   // early return
+      e.preventDefault();
+      onCerrar();
+    };
+
+    document.addEventListener("mousedown", handleFuera);
+    document.addEventListener("keydown", handleTecla);
+    return () => {
+      document.removeEventListener("mousedown", handleFuera);
+      document.removeEventListener("keydown", handleTecla);
+    };
+  }, [abierto, onCerrar]);
+
+  const activo = fila.activo !== false;
+  const nombre = fila.name || fila.full_name || fila.email;
+
+  const opcion = (props, icono, texto) =>
+    h("button", {
+      type: "button",
+      role: "menuitem",
+      className: "dropdown-item" + (props.peligro ? " dropdown-item-peligro" : ""),
+      onClick: props.onClick,
+      disabled: props.disabled,
+      title: props.title,
+    }, h(icono, { size: 14, "aria-hidden": true }), texto);
+
+  return h("div", { className: "dropdown", ref: contenedor },
+    h("button", {
+      type: "button",
+      className: "dropdown-toggle" + (abierto ? " abierto" : ""),
+      onClick: onAlternar,
+      "aria-haspopup": "true",
+      "aria-expanded": abierto ? "true" : "false",
+      "aria-label": "Acciones para " + nombre + " (" + fila.email + ")",
+    }, h(I.dots, { size: 16, "aria-hidden": true })),
+
+    abierto && h("div", {
+      className: "dropdown-menu",
+      role: "menu",
+      "aria-label": "Acciones de cuenta",
+    },
+      opcion({ onClick: () => onEditar(fila) }, I.edit, "Editar datos"),
+      opcion({ onClick: () => onClave(fila) }, I.lock, "Cambiar contraseña"),
+      h("div", { className: "dropdown-sep", role: "separator" }),
+      opcion({
+        onClick: () => onEstado(fila),
+        disabled: esPropio,
+        title: esPropio ? "No puede deshabilitar su propia cuenta" : undefined,
+      }, activo ? I.ban : I.check, activo ? "Deshabilitar acceso" : "Habilitar acceso"),
+      opcion({
+        onClick: () => onEliminar(fila),
+        disabled: esPropio,
+        peligro: true,
+        title: esPropio ? "No puede eliminar su propia cuenta" : undefined,
+      }, I.trash, "Eliminar permanentemente"),
+    ),
+  );
+}
+
+
+// ── Modal: editar datos de la cuenta ─────────────────────────────────────────
+function ModalEditar({ fila, guardando, error, onGuardar, onCerrar }) {
+  const [nombre, setNombre] = useState(fila.name || fila.full_name || "");
+  const [correo, setCorreo] = useState(fila.email || "");
+  const dialogo = useRef(null);
+
+  useEffect(() => {
+    const previo = document.activeElement;
+    const primero = dialogo.current && dialogo.current.querySelector(FOCUSABLE);
+    if (primero) primero.focus();
+
+    const handleTecla = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCerrar(); return; }
+      atraparFoco(e, dialogo.current);
+    };
+    document.addEventListener("keydown", handleTecla);
+    return () => {
+      document.removeEventListener("keydown", handleTecla);
+      if (previo && previo.focus) previo.focus();
+    };
+  }, [onCerrar]);
+
+  const sinCambios = nombre.trim() === (fila.name || fila.full_name || "") &&
+                     correo.trim() === (fila.email || "");
+
+  const handleEnviar = (e) => {
+    e.preventDefault();
+    if (sinCambios || guardando) return;   // early return
+    onGuardar({ full_name: nombre.trim() || null, email: correo.trim() });
+  };
+
+  return h("div", { className: "modal-backdrop" },
+    h("form", {
+      className: "modal",
+      style: { maxWidth: 460 },
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "editar-titulo",
+      ref: dialogo,
+      onSubmit: handleEnviar,
+    },
+      h("div", { className: "modal-head" },
+        h("div", { className: "modal-mark" }, h(I.edit, { size: 18 })),
+        h("div", null,
+          h("h2", { className: "modal-title", id: "editar-titulo" }, "Editar datos"),
+          h("div", { className: "modal-sub" }, fila.email),
+        ),
+        h("button", {
+          type: "button",
+          className: "btn btn-ghost btn-icon",
+          onClick: onCerrar,
+          "aria-label": "Cerrar el diálogo",
+        }, h(I.x, { size: 16 })),
+      ),
+
+      h("div", { className: "modal-body" },
+        h("label", { className: "auth-label", htmlFor: "editar-nombre" }, "Nombre completo"),
+        h("input", {
+          id: "editar-nombre",
+          className: "input",
+          style: { width: "100%", marginBottom: 14 },
+          value: nombre,
+          onChange: (e) => setNombre(e.target.value),
+          placeholder: "Walter Cueva",
+          autoComplete: "off",
+        }),
+
+        h("label", { className: "auth-label", htmlFor: "editar-correo" }, "Correo electrónico"),
+        h("input", {
+          id: "editar-correo",
+          className: "input",
+          style: { width: "100%" },
+          type: "email",
+          value: correo,
+          onChange: (e) => setCorreo(e.target.value),
+          required: true,
+          autoComplete: "off",
+        }),
+
+        h("div", { style: { fontSize: 11.5, color: "var(--ink-500)", marginTop: 8 } },
+          "El correo es la credencial de acceso: al cambiarlo, la persona entrará con el nuevo."),
+
+        error && h("div", { className: "alert alert-error", style: { marginTop: 14 } },
+          h(I.alert, { size: 14 }),
+          h("div", { style: { fontSize: 12.5 } }, error),
+        ),
+      ),
+
+      h("div", { className: "modal-foot" },
+        h("div", { className: "modal-actions", style: { marginTop: 0 } },
+          h("button", {
+            type: "button", className: "btn btn-secondary", onClick: onCerrar,
+          }, "Cancelar"),
+          h("button", {
+            type: "submit", className: "btn btn-primary", disabled: guardando || sinCambios,
+          },
+            guardando ? h("span", { className: "spinner-sm" }) : h(I.check, { size: 14 }),
+            guardando ? "Guardando…" : "Guardar cambios",
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+
+// ── Modal: borrado permanente ────────────────────────────────────────────────
+function ModalEliminar({ fila, borrando, error, onConfirmar, onCerrar }) {
+  const dialogo = useRef(null);
+
+  useEffect(() => {
+    const previo = document.activeElement;
+    // El foco arranca en Cancelar, no en el botón destructivo: un Enter de más
+    // no debe borrar una cuenta.
+    const items = dialogo.current ? dialogo.current.querySelectorAll(FOCUSABLE) : [];
+    if (items.length) items[items.length - 2] ? items[items.length - 2].focus()
+                                              : items[0].focus();
+
+    const handleTecla = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCerrar(); return; }
+      atraparFoco(e, dialogo.current);
+    };
+    document.addEventListener("keydown", handleTecla);
+    return () => {
+      document.removeEventListener("keydown", handleTecla);
+      if (previo && previo.focus) previo.focus();
+    };
+  }, [onCerrar]);
+
+  const nombre = fila.name || fila.full_name || fila.email;
+
+  return h("div", { className: "modal-backdrop" },
+    h("div", {
+      className: "modal",
+      style: { maxWidth: 470 },
+      role: "alertdialog",
+      "aria-modal": "true",
+      "aria-labelledby": "eliminar-titulo",
+      ref: dialogo,
+    },
+      h("div", { className: "modal-head" },
+        h("div", { className: "modal-mark modal-mark-peligro" }, h(I.trash, { size: 18 })),
+        h("div", null,
+          h("h2", { className: "modal-title", id: "eliminar-titulo" },
+            "Eliminar cuenta permanentemente"),
+          h("div", { className: "modal-sub" }, nombre + " · " + fila.email),
+        ),
+      ),
+
+      h("div", { className: "modal-body" },
+        h("p", null,
+          "Se borrarán la cuenta y ",
+          h("strong", null, "todos sus estudios clínicos"),
+          ". Esta acción no se puede deshacer y los registros no se podrán recuperar.",
+        ),
+        h("div", { className: "alert alert-warn" },
+          h(I.info, { size: 14 }),
+          h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
+            "Si solo quiere retirar el acceso, use ", h("strong", null, "Deshabilitar acceso"),
+            ": bloquea la entrada y conserva el historial.",
+          ),
+        ),
+        error && h("div", { className: "alert alert-error", style: { marginTop: 12 } },
+          h(I.alert, { size: 14 }),
+          h("div", { style: { fontSize: 12.5 } }, error),
+        ),
+      ),
+
+      h("div", { className: "modal-foot" },
+        h("div", { className: "modal-actions", style: { marginTop: 0 } },
+          h("button", {
+            type: "button", className: "btn btn-secondary",
+            onClick: onCerrar, disabled: borrando,
+          }, "Cancelar"),
+          h("button", {
+            type: "button", className: "btn btn-peligro",
+            onClick: onConfirmar, disabled: borrando,
+          },
+            borrando ? h("span", { className: "spinner-sm" }) : h(I.trash, { size: 14 }),
+            borrando ? "Eliminando…" : "Eliminar definitivamente",
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+
 // ── Módulo: gestión de cuentas ───────────────────────────────────────────────
-function GestionCuentas({ usuarios, cargando, disponible }) {
+function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando, aviso,
+                          menuAbierto, onAlternarMenu, onCerrarMenu,
+                          onCambiarRol, onRestablecer, onEditar, onCambiarEstado,
+                          onEliminar, onReintentar }) {
+  const cuerpo = () => {
+    if (cargando) {
+      return h("div", { className: "admin-vacio", role: "status" },
+        h("div", { className: "row", style: { gap: 10, justifyContent: "center" } },
+          h("span", { className: "spinner-sm" }),
+          h("span", null, "Cargando cuentas…"),
+        ),
+        // El Space del backend duerme tras un periodo sin uso y tarda cerca de
+        // un minuto en volver. Decirlo evita que parezca que se ha colgado.
+        lento && h("div", { style: { marginTop: 10, fontSize: 12, color: "var(--ink-500)" } },
+          "El servidor está tardando más de lo normal. Si el servicio estuvo ",
+          "inactivo, puede estar reactivándose."),
+      );
+    }
+    if (error) {
+      return h("div", { style: { padding: "16px 20px" } },
+        h("div", { className: "alert alert-error", role: "status", style: { marginBottom: 12 } },
+          h(I.alert, { size: 14 }),
+          h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } }, error),
+        ),
+        h("button", {
+          className: "btn btn-secondary",
+          onClick: onReintentar,
+          "aria-label": "Reintentar la carga del listado de cuentas",
+        }, h(I.refresh, { size: 14 }), "Reintentar"),
+      );
+    }
+    if (!usuarios.length) {
+      return h("div", { className: "admin-vacio" }, "No hay cuentas registradas.");
+    }
+
+    return h("table", { className: "table admin-users" },
+      h("thead", null, h("tr", null,
+        h("th", null, "Usuario"),
+        h("th", null, "Correo electrónico"),
+        h("th", null, "Rol"),
+        h("th", null, "Última conexión"),
+        h("th", null, "Estado"),
+        h("th", null, "Acciones"),
+      )),
+      h("tbody", null,
+        usuarios.map((u) => {
+          const rol = normalizeRole(u.role);
+          const esPropio = u.id === idPropio;
+          const ocupado = cambiando === u.id;
+          const nombre = u.name || u.full_name || "—";
+          const fecha = fmtFechaHora(u.last_login);
+          const destino = rol === ROLES.ADMIN ? ROLES.MEDICO : ROLES.ADMIN;
+
+          return h("tr", { key: u.id || u.email },
+            h("td", null,
+              h("div", { className: "row", style: { gap: 10 } },
+                h("div", { className: "avatar avatar-sm", "aria-hidden": true }, iniciales(u)),
+                h("span", { style: { fontWeight: 500 } }, nombre),
+              )),
+
+            h("td", { className: "mono", style: { fontSize: 12 } }, u.email || "—"),
+
+            h("td", null,
+              h("button", {
+                type: "button",
+                className: "role-toggle badge " +
+                  (rol === ROLES.ADMIN ? "badge-info" : "badge-neutral"),
+                onClick: () => onCambiarRol(u),
+                disabled: esPropio || ocupado,
+                title: esPropio
+                  ? "No puede cambiar su propio rol"
+                  : "Cambiar a " + ROLE_LABEL[destino],
+                "aria-label": esPropio
+                  ? "Su cuenta es " + ROLE_LABEL[rol] + ". No puede cambiar su propio rol."
+                  : "Cambiar el rol de " + u.email + " a " + ROLE_LABEL[destino],
+              },
+                ocupado ? h("span", { className: "spinner-sm" }) : null,
+                ROLE_LABEL[rol],
+                !esPropio && !ocupado && h(I.refresh, { size: 11, "aria-hidden": true }),
+              )),
+
+            // Cuando la cuenta es anterior a la columna `last_login`, el servidor
+            // devuelve el alta: se rotula como tal en lugar de hacerla pasar por
+            // un ingreso que nunca ocurrió.
+            h("td", { style: { fontSize: 12.5, color: "var(--ink-600)" } },
+              !fecha
+                ? h("span", { className: "muted" }, "Sin ingresos recientes")
+                : u.last_login_real === false
+                  ? h("span", { title: "Esta cuenta no ha iniciado sesión desde que se registra la actividad" },
+                      "Alta: " + fecha)
+                  : fecha),
+
+            h("td", null,
+              h("span", {
+                className: "pill-estado" + (u.activo === false ? " pill-estado-wait" : ""),
+                title: u.activo === false
+                  ? "La cuenta no puede iniciar sesión. Su historial se conserva."
+                  : undefined,
+              },
+                h("span", {
+                  className: "dot" + (u.activo === false ? " dot-checking" : ""),
+                  "aria-hidden": true,
+                }),
+                u.activo === false ? "Inactivo" : "Activo")),
+
+            h("td", null,
+              h(MenuAcciones, {
+                fila: u,
+                abierto: menuAbierto === u.id,
+                esPropio,
+                onAlternar: () => onAlternarMenu(u.id),
+                onCerrar: onCerrarMenu,
+                onEditar: onEditar,
+                onClave: onRestablecer,
+                onEstado: onCambiarEstado,
+                onEliminar: onEliminar,
+              })),
+          );
+        }),
+      ),
+    );
+  };
+
   return h("div", { className: "card" },
     h("div", { className: "card-head" },
       h("div", null,
         h("h3", { className: "card-title" }, "Gestión de cuentas"),
-        h("div", { className: "card-sub" }, "Usuarios registrados y su nivel de acceso"),
+        h("div", { className: "card-sub" }, "Usuarios registrados, nivel de acceso y actividad"),
       ),
       h("span", { className: "badge badge-neutral" }, usuarios.length),
     ),
 
-    !disponible && h("div", { className: "alert alert-warn", style: { margin: "16px 20px 0" } },
-      h(I.alert, { size: 14 }),
-      h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
-        h("strong", null, "Listado incompleto. "),
-        "El backend aún no expone ", h("code", null, "/admin/users"),
-        ", así que solo puede mostrarse la cuenta en sesión.",
-      ),
+    aviso && h("div", {
+      className: "alert " + (aviso.ok ? "alert-info" : "alert-error"),
+      style: { margin: "16px 20px 0" },
+      role: "status",
+    },
+      h(aviso.ok ? I.check : I.alert, { size: 14 }),
+      h("div", { style: { fontSize: 12.5 } }, aviso.texto),
     ),
 
-    cargando
-      ? h("div", { style: { padding: 24, textAlign: "center", color: "var(--ink-400)", fontSize: 13 } },
-          "Cargando cuentas…")
-      : h("table", { className: "table", style: { marginTop: 12 } },
-          h("thead", null, h("tr", null,
-            h("th", null, "Usuario"),
-            h("th", null, "Correo"),
-            h("th", null, "Rol"),
-            h("th", null, "Estado"),
-          )),
-          h("tbody", null,
-            usuarios.map((u) => {
-              const rol = normalizeRole(u.role);
-              return h("tr", { key: u.id || u.email },
-                h("td", null,
-                  h("div", { className: "row", style: { gap: 10 } },
-                    h("div", { className: "avatar avatar-sm", "aria-hidden": true },
-                      (u.full_name || u.email || "?").slice(0, 2).toUpperCase()),
-                    h("span", { style: { fontWeight: 500 } }, u.full_name || "—"),
-                  )),
-                h("td", { className: "mono", style: { fontSize: 12 } }, u.email || "—"),
-                h("td", null,
-                  h("span", {
-                    className: "badge " + (rol === ROLES.ADMIN ? "badge-info" : "badge-neutral"),
-                  }, ROLE_LABEL[rol])),
-                h("td", null,
-                  h("span", { className: "row", style: { gap: 6, fontSize: 12.5 } },
-                    h("span", {
-                      className: "dot" + (u.activo === false ? " dot-offline" : ""),
-                      "aria-hidden": true,
-                    }),
-                    u.activo === false ? "Inactivo" : "Activo")),
-              );
-            }),
-          ),
-        ),
+    // `overflow-x` recortaría el menú flotante: mientras hay uno abierto se
+    // libera el desbordamiento, a costa del desplazamiento horizontal.
+    h("div", {
+      className: "table-wrap" + (menuAbierto ? " sin-recorte" : ""),
+    }, cuerpo()),
   );
 }
 
 // ── Pantalla ─────────────────────────────────────────────────────────────────
-export function AdminScreen({ section = "panel", user, prefs, onSavePrefs }) {
-  const [umbral, setUmbral] = useState(
-    prefs && typeof prefs.threshold === "number" ? prefs.threshold : UMBRAL_POR_DEFECTO);
-  const [guardando, setGuardando] = useState(false);
-  const [guardado, setGuardado] = useState(false);
-  const [errorUmbral, setErrorUmbral] = useState(null);
+export function AdminScreen({ section = "panel", user }) {
+  // El panel necesita el listado de cuentas; auditoría no lo pinta, así que
+  // tampoco lo pide: una petición menos es una ocasión menos de topar la cuota.
+  const necesitaCuentas = section === "panel";
 
-  const [total, setTotal] = useState(0);
-  const [cargandoDatos, setCargandoDatos] = useState(true);
+  const [almacenamiento, setAlmacenamiento] = useState(null);
+  const [errorAlmacen, setErrorAlmacen] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [lento, setLento] = useState(false);
   const [purgando, setPurgando] = useState(false);
   const [purgaResultado, setPurgaResultado] = useState(null);
 
   const [usuarios, setUsuarios] = useState([]);
-  const [usuariosDisponibles, setUsuariosDisponibles] = useState(false);
+  const [errorCuentas, setErrorCuentas] = useState(null);
+  const [cambiando, setCambiando] = useState(null);
+  const [aviso, setAviso] = useState(null);
+
+  const [modal, setModal] = useState(null);          // { fila }
+  const [estadoModal, setEstadoModal] = useState("confirmar");
+  const [errorModal, setErrorModal] = useState(null);
+
+  const [estadoServicio] = useServiceStatus();
+
+  // Ciclo de vida de cuentas. Solo un menú abierto a la vez: dos menús
+  // flotantes simultáneos se solapan y no se sabe cuál manda.
+  const [menuAbierto, setMenuAbierto] = useState(null);
+  const [modalEditar, setModalEditar] = useState(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState(null);
+  const [modalEliminar, setModalEliminar] = useState(null);
+  const [borrando, setBorrando] = useState(false);
+  const [errorBorrado, setErrorBorrado] = useState(null);
+
+  // ── Carga de datos ─────────────────────────────────────────────────────────
+  // Devuelve su propia función de cancelación: la usa tanto el desmontaje como
+  // el botón de reintentar, para no dejar peticiones viejas escribiendo estado.
+  const cargarDatos = useCallback(() => {
+    let vivo = true;
+    const ctrl = new AbortController();
+    // Sin tiempo límite, una petición contra un servicio dormido se queda
+    // colgada y la pantalla no llega a decir nunca qué ha pasado.
+    const limite = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
+    const avisoLento = setTimeout(() => { if (vivo) setLento(true); }, TIEMPO_AVISO_MS);
+
+    setCargando(true);
+    setLento(false);
+    setErrorCuentas(null);
+    setErrorAlmacen(null);
+
+    const tareas = [
+      pedirJson("/admin/storage", ctrl.signal),
+      necesitaCuentas ? pedirJson("/admin/users", ctrl.signal) : Promise.resolve(null),
+    ];
+
+    // `allSettled` y no `all`: si falla el listado de cuentas, las métricas de
+    // almacenamiento que sí llegaron deben pintarse igualmente.
+    Promise.allSettled(tareas).then(([resAlmacen, resCuentas]) => {
+      if (!vivo) return;
+
+      if (resAlmacen.status === "fulfilled") {
+        setAlmacenamiento(resAlmacen.value);
+      } else {
+        setAlmacenamiento(null);
+        setErrorAlmacen(describirFallo(resAlmacen.reason));
+      }
+
+      if (!necesitaCuentas) return;
+
+      if (resCuentas.status === "fulfilled") {
+        setUsuarios(Array.isArray(resCuentas.value) ? resCuentas.value : []);
+      } else {
+        setUsuarios([]);
+        setErrorCuentas(describirFallo(resCuentas.reason));
+      }
+    }).finally(() => {
+      clearTimeout(limite);
+      clearTimeout(avisoLento);
+      if (vivo) { setCargando(false); setLento(false); }
+    });
+
+    return () => {
+      vivo = false;
+      clearTimeout(limite);
+      clearTimeout(avisoLento);
+      ctrl.abort();
+    };
+  }, [necesitaCuentas]);
+
+  const cancelarRef = useRef(null);
+
+  const handleRecargar = useCallback(() => {
+    if (cancelarRef.current) cancelarRef.current();
+    cancelarRef.current = cargarDatos();
+  }, [cargarDatos]);
 
   useEffect(() => {
-    let vivo = true;
+    handleRecargar();
+    return () => { if (cancelarRef.current) cancelarRef.current(); };
+  }, [handleRecargar]);
 
-    getStudies()
-      .then((data) => { if (vivo) setTotal(Array.isArray(data) ? data.length : 0); })
-      .catch(() => { if (vivo) setTotal(0); })
-      .finally(() => { if (vivo) setCargandoDatos(false); });
+  const aplicarRol = useCallback((id, rol) => {
+    setUsuarios((previos) => previos.map((u) => (u.id === id ? { ...u, role: rol } : u)));
+  }, []);
 
-    // Listado de cuentas: si el endpoint no existe, se degrada a la cuenta propia.
-    authFetch("/admin/users")
-      .then(async (res) => {
-        if (!res.ok) throw new Error("HTTP_" + res.status);
-        const data = await res.json();
-        if (!vivo) return;
-        setUsuarios(Array.isArray(data) ? data : []);
-        setUsuariosDisponibles(true);
-      })
-      .catch(() => {
-        if (!vivo) return;
-        setUsuarios(user ? [{ ...user, activo: true }] : []);
-        setUsuariosDisponibles(false);
-      });
+  // ── Cambio de rol ──────────────────────────────────────────────────────────
+  const handleCambiarRol = useCallback(async (fila) => {
+    if (!fila || fila.id === (user && user.id)) return;   // early return
 
-    return () => { vivo = false; };
-  }, [user]);
+    const previo = normalizeRole(fila.role);
+    const destino = previo === ROLES.ADMIN ? ROLES.MEDICO : ROLES.ADMIN;
 
-  const handleGuardarUmbral = useCallback(async () => {
-    setGuardando(true);
-    setErrorUmbral(null);
+    setCambiando(fila.id);
+    setAviso(null);
+    aplicarRol(fila.id, destino);        // optimista: la tabla responde al instante
+
     try {
-      await onSavePrefs({ threshold: umbral });
-      setGuardado(true);
-      setTimeout(() => setGuardado(false), 2500);
+      const res = await authFetch("/admin/users/" + fila.id + "/role", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: destino }),
+      });
+      if (!res.ok) throw new Error("HTTP_" + res.status);
+
+      const datos = await res.json();
+      aplicarRol(fila.id, normalizeRole(datos.role));
+      setAviso({
+        ok: true,
+        texto: (fila.email || "La cuenta") + " ahora es " + ROLE_LABEL[normalizeRole(datos.role)] + ".",
+      });
     } catch {
-      setErrorUmbral("No se pudo guardar la calibración. Verifique la conexión con el servidor.");
+      aplicarRol(fila.id, previo);       // el servidor manda: se revierte
+      setAviso({
+        ok: false,
+        texto: "No se pudo cambiar el rol de " + (fila.email || "la cuenta") +
+               ". No se modificó nada.",
+      });
     } finally {
-      setGuardando(false);
+      setCambiando(null);
     }
-  }, [umbral, onSavePrefs]);
+  }, [aplicarRol, user]);
+
+  // ── Restablecimiento de contraseña ─────────────────────────────────────────
+  const handleAbrirReset = useCallback((fila) => {
+    setMenuAbierto(null);
+    setModal({ fila });
+    setEstadoModal("confirmar");
+    setErrorModal(null);
+  }, []);
+
+  const handleCerrarModal = useCallback(() => {
+    setModal(null);
+    setEstadoModal("confirmar");
+    setErrorModal(null);
+  }, []);
+
+  const handleConfirmarReset = useCallback(async (nuevaClave) => {
+    if (!modal) return;                                   // early return
+
+    setEstadoModal("enviando");
+    setErrorModal(null);
+    try {
+      // El servidor sigue sabiendo generar una clave aleatoria si no se le
+      // manda ninguna; aquí siempre se le manda la que eligió el administrador.
+      await enviarJson("/admin/users/" + modal.fila.id + "/reset-password",
+                       "POST", { new_password: nuevaClave });
+      setEstadoModal("listo");
+    } catch (err) {
+      setEstadoModal("confirmar");
+      setErrorModal(err.detalle ||
+        "No se pudo cambiar la contraseña. La cuenta conserva la que tenía.");
+    }
+  }, [modal]);
+
+  // ── Ciclo de vida de cuentas ───────────────────────────────────────────────
+  const handleAlternarMenu = useCallback((id) => {
+    setMenuAbierto((previo) => (previo === id ? null : id));
+  }, []);
+
+  const handleCerrarMenu = useCallback(() => setMenuAbierto(null), []);
+
+  const handleAbrirEdicion = useCallback((fila) => {
+    setMenuAbierto(null);
+    setErrorEdicion(null);
+    setModalEditar(fila);
+  }, []);
+
+  const handleGuardarEdicion = useCallback(async (datos) => {
+    if (!modalEditar) return;                              // early return
+
+    setGuardandoEdicion(true);
+    setErrorEdicion(null);
+    try {
+      const actualizado = await enviarJson("/admin/users/" + modalEditar.id, "PUT", datos);
+      setUsuarios((previos) => previos.map((u) => (u.id === actualizado.id
+        ? { ...u, name: actualizado.name, full_name: actualizado.full_name,
+            email: actualizado.email }
+        : u)));
+      setModalEditar(null);
+      setAviso({ ok: true, texto: "Datos de la cuenta actualizados." });
+    } catch (err) {
+      setErrorEdicion(err.detalle || describirFallo(err));
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  }, [modalEditar]);
+
+  const handleCambiarEstado = useCallback(async (fila) => {
+    setMenuAbierto(null);
+    setAviso(null);
+
+    // Si figura inactiva se habilita, y al revés.
+    const destino = fila.activo === false;
+    try {
+      const datos = await enviarJson(
+        "/admin/users/" + fila.id + "/status", "PATCH", { is_active: destino });
+      setUsuarios((previos) => previos.map((u) => (
+        u.id === fila.id ? { ...u, activo: datos.activo } : u)));
+      setAviso({
+        ok: true,
+        texto: (fila.email || "La cuenta") + (datos.activo
+          ? " puede volver a iniciar sesión."
+          : " queda deshabilitada. Su historial clínico se conserva."),
+      });
+    } catch (err) {
+      setAviso({
+        ok: false,
+        texto: err.detalle || "No se pudo cambiar el estado de la cuenta.",
+      });
+    }
+  }, []);
+
+  const handleAbrirEliminar = useCallback((fila) => {
+    setMenuAbierto(null);
+    setErrorBorrado(null);
+    setModalEliminar(fila);
+  }, []);
+
+  const handleConfirmarEliminar = useCallback(async () => {
+    if (!modalEliminar) return;                            // early return
+
+    setBorrando(true);
+    setErrorBorrado(null);
+    try {
+      await enviarJson("/admin/users/" + modalEliminar.id, "DELETE");
+      setUsuarios((previos) => previos.filter((u) => u.id !== modalEliminar.id));
+      setAviso({
+        ok: true,
+        texto: modalEliminar.email + " y sus estudios se eliminaron permanentemente.",
+      });
+      setModalEliminar(null);
+      handleRecargar();      // los KPIs de estudios y almacenamiento cambian
+    } catch (err) {
+      setErrorBorrado(err.detalle || "No se pudo eliminar la cuenta.");
+    } finally {
+      setBorrando(false);
+    }
+  }, [modalEliminar, handleRecargar]);
 
   const handlePurgar = useCallback(async () => {
     setPurgando(true);
@@ -279,16 +1195,15 @@ export function AdminScreen({ section = "panel", user, prefs, onSavePrefs }) {
     try {
       const res = await authFetch("/admin/maintenance/purge", { method: "POST" });
       if (!res.ok) throw new Error("HTTP_" + res.status);
-      const data = await res.json().catch(() => ({}));
+      const datos = await res.json().catch(() => ({}));
       setPurgaResultado({
         ok: true,
-        mensaje: "Mantenimiento completado. Registros liberados: " + (data.eliminados ?? 0) + ".",
+        mensaje: "Mantenimiento completado. Registros liberados: " + (datos.eliminados ?? 0) + ".",
       });
     } catch {
       setPurgaResultado({
         ok: false,
-        mensaje: "La tarea de mantenimiento no está disponible: el backend aún no implementa " +
-                 "POST /admin/maintenance/purge. No se modificó ningún dato.",
+        mensaje: "La tarea de mantenimiento no pudo ejecutarse. No se modificó ningún dato.",
       });
     } finally {
       setPurgando(false);
@@ -298,13 +1213,12 @@ export function AdminScreen({ section = "panel", user, prefs, onSavePrefs }) {
   const titulos = {
     panel:     ["Panel de administración", "Estado operativo del sistema y de las cuentas"],
     auditoria: ["Auditoría y cuotas", "Consumo de almacenamiento y mantenimiento de la base"],
-    config:    ["Configuración global", "Parámetros con los que opera el motor de análisis"],
   };
   const [titulo, subtitulo] = titulos[section] || titulos.panel;
 
-  const verCalibracion = section === "panel" || section === "config";
-  const verAuditoria   = section === "panel" || section === "auditoria";
-  const verCuentas     = section === "panel" || section === "auditoria";
+  // Cada pantalla con un propósito: el panel gobierna cuentas, auditoría vigila
+  // el almacenamiento. Nada se repite entre las dos.
+  const esPanel = section === "panel";
 
   return h("div", { className: "content" },
     h("div", { className: "page-header" },
@@ -316,25 +1230,61 @@ export function AdminScreen({ section = "panel", user, prefs, onSavePrefs }) {
         h(I.shield, { size: 11, "aria-hidden": true }), " Acceso administrador"),
     ),
 
-    h("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: verCalibracion && verAuditoria ? "1fr 1fr" : "1fr",
-        gap: 20,
-        marginBottom: verCuentas ? 20 : 0,
-      },
-    },
-      verCalibracion && h(CalibracionUmbral, {
-        umbral, onChange: setUmbral, onSave: handleGuardarUmbral,
-        guardando, guardado, error: errorUmbral,
-      }),
-      verAuditoria && h(AuditoriaAlmacenamiento, {
-        total, cargando: cargandoDatos, purgando, purgaResultado, onPurgar: handlePurgar,
-      }),
-    ),
+    esPanel
+      ? h(KpisGobernanza, {
+          usuarios, almacenamiento, cargando, estadoServicio,
+        })
+      : h(AuditoriaAlmacenamiento, {
+          datos: almacenamiento,
+          cargando,
+          error: errorAlmacen,
+          onReintentar: handleRecargar,
+          purgando,
+          purgaResultado,
+          onPurgar: handlePurgar,
+        }),
 
-    verCuentas && h(GestionCuentas, {
-      usuarios, cargando: false, disponible: usuariosDisponibles,
+    esPanel && h(GestionCuentas, {
+      usuarios,
+      cargando,
+      lento,
+      error: errorCuentas,
+      idPropio: user && user.id,
+      cambiando,
+      aviso,
+      menuAbierto,
+      onAlternarMenu: handleAlternarMenu,
+      onCerrarMenu: handleCerrarMenu,
+      onCambiarRol: handleCambiarRol,
+      onRestablecer: handleAbrirReset,
+      onEditar: handleAbrirEdicion,
+      onCambiarEstado: handleCambiarEstado,
+      onEliminar: handleAbrirEliminar,
+      onReintentar: handleRecargar,
+    }),
+
+    modalEditar && h(ModalEditar, {
+      fila: modalEditar,
+      guardando: guardandoEdicion,
+      error: errorEdicion,
+      onGuardar: handleGuardarEdicion,
+      onCerrar: () => setModalEditar(null),
+    }),
+
+    modalEliminar && h(ModalEliminar, {
+      fila: modalEliminar,
+      borrando,
+      error: errorBorrado,
+      onConfirmar: handleConfirmarEliminar,
+      onCerrar: () => setModalEliminar(null),
+    }),
+
+    modal && h(ModalRestablecer, {
+      fila: modal.fila,
+      estado: estadoModal,
+      error: errorModal,
+      onConfirmar: handleConfirmarReset,
+      onCerrar: handleCerrarModal,
     }),
   );
 }

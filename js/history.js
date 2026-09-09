@@ -1,27 +1,11 @@
 // Persistencia de estudios vía backend (Postgres/Supabase).
-// Cada entrada guarda metadatos + thumbnail pequeño (96×72 JPEG).
-// No almacena heatmap_b64 (demasiado grande).
+//
+// Solo metadatos escalares: el servidor no guarda imágenes ni mapas Grad-CAM,
+// de modo que la base crece con el número de estudios y no con su peso. La
+// imagen de la sesión en curso vive en `sessionCache.js`, en memoria.
 
 import { CONFIG } from "./config.js";
 import { authFetch } from "./auth.js";
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-function makeThumbnail(src) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = 96; c.height = 72;
-      c.getContext("2d").drawImage(img, 0, 0, 96, 72);
-      resolve(c.toDataURL("image/jpeg", 0.7));
-    };
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
 
 export async function getStudies() {
   try {
@@ -33,30 +17,37 @@ export async function getStudies() {
   }
 }
 
-export async function saveStudy(file, result, paciente = "") {
-  const thumb = await makeThumbnail(file.src);
+/**
+ * Registra un estudio en el historial.
+ *
+ * Envía los nombres canónicos del esquema. El servidor sigue aceptando los
+ * antiguos (`prob`, `paciente`) por alias, pero depender de esa capa de
+ * compatibilidad es lo que hace que un cambio de esquema pase inadvertido.
+ *
+ * Lanza si el servidor rechaza el guardado. Antes devolvía un objeto fabricado
+ * en local, así que un fallo de persistencia era invisible: la pantalla daba el
+ * estudio por guardado y no aparecía nunca en el historial.
+ */
+export async function saveStudy(result, paciente = "") {
   const body = {
-    fileName:    file.name || "imagen.jpg",
-    thumbnail:   thumb,
-    paciente:    (paciente || "").trim(),   // nombre o ID del paciente (puede ser vacío)
-    clase:       result.clase,
-    prob:        result.prob,
-    latencia_ms: result.latencia_ms,
-    modelo:      result.modelo  || "—",
-    modelId:     result.modelId || "resnet50",
+    paciente_id:  (paciente || "").trim() || null,
+    clase:        result.clase,
+    probabilidad: result.prob,
+    latencia_ms:  result.latencia_ms,
   };
 
-  try {
-    const res = await authFetch(CONFIG.STUDIES_PATH, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error("HTTP_" + res.status);
-    return await res.json();
-  } catch {
-    return { id: uid(), timestamp: new Date().toISOString(), ...body };
+  const res = await authFetch(CONFIG.STUDIES_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const fallo = new Error("HTTP_" + res.status);
+    fallo.estado = res.status;
+    throw fallo;
   }
+  return res.json();
 }
 
 export async function deleteStudy(id) {

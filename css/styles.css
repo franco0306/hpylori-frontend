@@ -45,6 +45,11 @@
 :root[data-theme="dark"] .batch-tag-pos { background: #3A1A1F; border-color: #5E2830; color: var(--red-600); }
 :root[data-theme="dark"] .batch-tag-neg { background: #12301F; border-color: #1E4A32; color: var(--green-600); }
 :root[data-theme="dark"] .batch-tag-error { background: #2E2410; border-color: #4A3A12; color: var(--amber-600); }
+:root[data-theme="dark"] .pill-estado { background: #12301F; border-color: #1E4A32; color: var(--green-600); }
+:root[data-theme="dark"] .pill-estado-off { background: #3A1A1F; border-color: #5E2830; color: var(--red-600); }
+:root[data-theme="dark"] .pill-estado-wait { background: var(--ink-100); border-color: var(--ink-300); color: var(--ink-700); }
+:root[data-theme="dark"] .dropdown-menu { box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+:root[data-theme="dark"] .btn-peligro { color: #1A0B0D; }
 :root[data-theme="dark"] .modal { box-shadow: 0 18px 48px rgba(0,0,0,.6); }
 :root[data-theme="dark"] .modal-backdrop { background: rgba(0,0,0,.72); }
 :root[data-theme="dark"] .preview-chip { background: rgba(0,0,0,.72); }
@@ -445,3 +450,92 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
   display: flex; color: var(--ink-400); pointer-events: none;
 }
+
+/* ── Panel de administración · gestión de cuentas ─────────────────────────── */
+/* Todo se apoya en los tokens de color, así que el modo oscuro se resuelve solo
+   salvo la píldora verde, que necesita su propio fondo (ver bloque dark).      */
+
+/* Seis columnas no caben en pantallas estrechas: la tabla se desplaza dentro de
+   su tarjeta en vez de estirar el cuerpo de la página.                         */
+.table-wrap { overflow-x: auto; }
+
+.admin-vacio { padding: 28px 20px; text-align: center; color: var(--ink-400); font-size: 13px; }
+
+.admin-users { margin-top: 4px; }
+.admin-users td { vertical-align: middle; white-space: nowrap; }
+.admin-users th:last-child, .admin-users td:last-child { text-align: right; }
+
+/* Insignia de rol que además es botón: alterna Médico / Administrador. */
+.role-toggle { border: 1px solid transparent; cursor: pointer; transition: all 120ms ease; }
+.role-toggle:hover:not(:disabled) { filter: brightness(.96); border-color: var(--ink-300); }
+.role-toggle:disabled { cursor: default; opacity: .8; }
+.role-toggle:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+
+.pill-estado {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  background: var(--green-50); color: #047857; border: 1px solid var(--green-100);
+}
+/* Variantes para la disponibilidad del motor: el KPI dice lo que mide la sonda,
+   no un estado fijo. Mismos contrastes que los badges diagnósticos.           */
+.pill-estado-off  { background: var(--red-50);  color: #B91C1C; border-color: var(--red-100); }
+.pill-estado-wait { background: var(--ink-100); color: var(--ink-700); border-color: var(--ink-200); }
+
+.btn-sm { padding: 6px 10px; font-size: 12px; gap: 6px; }
+
+/* Los campos de contraseña del panel reutilizan `.input` y `.auth-label`, así
+   que no necesitan estilos propios. El bloque `.temp-pass` que mostraba la
+   clave generada desapareció al pasar a contraseña escrita y confirmada.     */
+
+/* ── Menú de acciones por cuenta (kebab) ──────────────────────────────────── */
+/* El proyecto no usa variables --bg-* ni --border-*: la superficie es --white y
+   los bordes salen de la escala --ink-*, que ya conmuta sola en modo oscuro.  */
+
+.dropdown { position: relative; display: inline-block; }
+
+.dropdown-toggle {
+  width: 30px; height: 30px; padding: 0;
+  display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid transparent;
+  background: transparent; color: var(--ink-500);
+  transition: background 120ms ease, color 120ms ease;
+}
+.dropdown-toggle:hover { background: var(--ink-100); color: var(--ink-900); }
+.dropdown-toggle.abierto { background: var(--ink-100); color: var(--ink-900); border-color: var(--ink-300); }
+.dropdown-toggle:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+
+.dropdown-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 224px; padding: 6px;
+  background: var(--white);
+  border: 1px solid var(--ink-200); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+  text-align: left;
+}
+
+.dropdown-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 10px;
+  border: 0; border-radius: 7px; background: transparent;
+  font-size: 13px; font-weight: 500; color: var(--ink-700);
+  text-align: left; white-space: nowrap;
+}
+.dropdown-item:hover:not(:disabled) { background: var(--ink-100); color: var(--ink-900); }
+.dropdown-item:focus-visible { outline: 2px solid var(--blue-700); outline-offset: -2px; }
+.dropdown-item:disabled { opacity: .45; cursor: not-allowed; }
+
+/* La acción destructiva se separa y se marca en rojo: no debe pulsarse por
+   inercia al bajar por la lista.                                             */
+.dropdown-item-peligro { color: var(--red-600); }
+.dropdown-item-peligro:hover:not(:disabled) { background: var(--red-50); color: var(--red-600); }
+
+.dropdown-sep { height: 1px; margin: 5px 6px; background: var(--ink-200); }
+
+/* Mientras hay un menú abierto la tabla deja de recortar su desbordamiento. */
+.table-wrap.sin-recorte { overflow: visible; }
+
+.btn-peligro { background: var(--red-600); color: #fff; }
+.btn-peligro:hover:not(:disabled) { filter: brightness(1.08); }
+
+.modal-mark-peligro { background: var(--red-50); color: var(--red-600); border-color: var(--red-100); }

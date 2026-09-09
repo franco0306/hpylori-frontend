@@ -1,31 +1,9 @@
 import { I } from "../icons.js";
 import { THEMES } from "../theme.js";
-import { CONFIG } from "../config.js";
+import { useServiceStatus } from "../health.js";
 
 const React = window.React;
-const { useState, useEffect, useCallback } = React;
 const h = React.createElement;
-
-// Comprobación real del servicio de análisis. Se usa `no-cors`: no necesitamos
-// leer la respuesta, solo saber si el servidor contesta. Cualquier respuesta
-// (incluso opaca) significa alcanzable; solo un fallo de red cuenta como caída.
-const PROBE_TIMEOUT_MS = 12000;
-const RECHECK_MS = 120000;
-
-async function probeService() {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
-  try {
-    await fetch(CONFIG.API_BASE_URL + "/", {
-      method: "GET", mode: "no-cors", cache: "no-store", signal: ctrl.signal,
-    });
-    return "online";
-  } catch {
-    return "offline";
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // Estado del servicio en lenguaje clínico: el médico necesita saber si puede
 // analizar, no si un endpoint HTTP responde.
@@ -57,20 +35,7 @@ function initials(user) {
 // Solo contexto de navegación, estado del servicio, accesibilidad y usuario.
 export function Topbar({ crumbs, user, theme, onToggleTheme }) {
   const dark = theme === THEMES.DARK;
-  const [status, setStatus] = useState("checking");
-
-  const handleCheckService = useCallback(() => {
-    let alive = true;
-    setStatus("checking");
-    probeService().then((next) => { if (alive) setStatus(next); });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
-    const cancel = handleCheckService();
-    const iv = setInterval(handleCheckService, RECHECK_MS);
-    return () => { cancel(); clearInterval(iv); };
-  }, [handleCheckService]);
+  const [status, handleCheckService] = useServiceStatus();
 
   const info = STATUS_TEXT[status];
 

@@ -1,5 +1,5 @@
 import { I } from "../icons.js";
-import { MODELS } from "../models.js";
+import { THEMES } from "../theme.js";
 
 const React = window.React;
 const { useState } = React;
@@ -14,23 +14,22 @@ function thresholdTier(t) {
   return             { label: "Muy específico",    color: "var(--ink-500)",   desc: "Alta certeza en positivos. Mayor riesgo de falsos negativos." };
 }
 
-export function SettingsScreen({ prefs, onSave }) {
+export function SettingsScreen({ prefs, onSave, theme, onToggleTheme }) {
   // Estado local: el usuario edita aquí antes de guardar
-  const [modelId,   setModelId]   = useState(prefs.modelId);
   const [threshold, setThreshold] = useState(prefs.threshold);
   const [saved,     setSaved]     = useState(false);
 
   const tier    = thresholdTier(threshold);
-  const changed = modelId !== prefs.modelId || threshold !== prefs.threshold;
+  const changed = threshold !== prefs.threshold;
+  const dark    = theme === THEMES.DARK;
 
   function handleSave() {
-    onSave({ modelId, threshold });
+    onSave({ threshold });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
   function handleReset() {
-    setModelId("resnet50");
     setThreshold(0.5);
   }
 
@@ -38,7 +37,7 @@ export function SettingsScreen({ prefs, onSave }) {
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Configuración"),
-        h("div", { className: "page-sub" }, "HU-008 · Preferencias de inferencia · guardado en tu cuenta"),
+        h("div", { className: "page-sub" }, "Preferencias de análisis y de interfaz · se guardan en tu cuenta"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
         h("button", { className: "btn btn-ghost", onClick: handleReset }, "Restablecer valores"),
@@ -101,56 +100,48 @@ export function SettingsScreen({ prefs, onSave }) {
           ),
         ),
 
-        // Nota sobre ResNet50
+        // Nota clínica al mover el umbral
         threshold !== prefs.threshold && h("div", { className: "alert alert-info", style: { marginTop: 12 } },
           h(I.info, { size: 14 }),
           h("div", { style: { fontSize: 12 } },
-            "El modelo ResNet50 fue evaluado con umbral 0.255. Cambiarlo afectará sensibilidad y especificidad respecto a las métricas publicadas.",
+            "El sistema fue validado con un umbral de 0.255. Modificarlo altera la sensibilidad y la especificidad respecto a las cifras validadas.",
           ),
         ),
       ),
 
-      // ── Modelo por defecto ──────────────────────────────────────────────
+      // ── Accesibilidad e interfaz ────────────────────────────────────────
       h("div", { style: { display: "flex", flexDirection: "column", gap: 20 } },
         h("div", { className: "card card-pad" },
-          h("div", { className: "section-title" }, "Modelo por defecto"),
+          h("div", { className: "section-title" }, "Accesibilidad de la interfaz"),
           h("p", { style: { fontSize: 13, color: "var(--ink-600)", marginTop: 0, marginBottom: 16, lineHeight: 1.6 } },
-            "Modelo activo al iniciar la sesión. Puede cambiarse en el Topbar en cualquier momento.",
+            "El modo oscuro reduce el deslumbramiento del monitor en salas de endoscopia de baja iluminación, ",
+            "manteniendo el contraste de texto exigido por WCAG 2.1 (nivel AA).",
           ),
-          h("select", {
-            className: "select", style: { width: "100%" },
-            value: modelId,
-            onChange: (e) => { setModelId(e.target.value); setSaved(false); },
-          },
-            MODELS.map((m) =>
-              h("option", { key: m.id, value: m.id },
-                m.name + " " + m.version + (m.recommended ? " · Recomendado" : ""),
-              )
-            ),
-          ),
-
-          // Info del modelo seleccionado
-          (() => {
-            const m = MODELS.find((x) => x.id === modelId);
-            if (!m) return null;
-            return h("div", { style: { marginTop: 14 } },
-              h("div", { className: "metrics" },
-                h("div", { className: "metric" },
-                  h("div", { className: "metric-label" }, "Accuracy"),
-                  h("div", { className: "metric-value" }, (m.metrics.accuracy * 100).toFixed(1), h("small", null, "%")),
-                ),
-                h("div", { className: "metric" },
-                  h("div", { className: "metric-label" }, "Recall"),
-                  h("div", { className: "metric-value" }, (m.metrics.sensitivity * 100).toFixed(1), h("small", null, "%")),
-                ),
-                h("div", { className: "metric" },
-                  h("div", { className: "metric-label" }, "AUC"),
-                  h("div", { className: "metric-value" }, m.metrics.auc.toFixed(3)),
-                ),
+          h("div", { className: "row between" },
+            h("div", { className: "row", style: { gap: 10 } },
+              h("div", {
+                style: {
+                  width: 34, height: 34, borderRadius: 8, display: "grid", placeItems: "center",
+                  background: "var(--ink-100)", color: "var(--ink-700)", flexShrink: 0,
+                },
+              }, h(dark ? I.moon : I.sun, { size: 16 })),
+              h("div", null,
+                h("div", { style: { fontWeight: 600, fontSize: 13.5 } }, "Modo oscuro"),
+                h("div", { style: { fontSize: 12, color: "var(--ink-500)" } },
+                  dark ? "Activado · sala de baja iluminación" : "Desactivado · iluminación normal"),
               ),
-              h("div", { style: { fontSize: 12, color: "var(--ink-500)", marginTop: 10, lineHeight: 1.5 } }, m.desc),
-            );
-          })(),
+            ),
+            h("button", {
+              className: "switch" + (dark ? " on" : ""),
+              onClick: onToggleTheme,
+              role: "switch",
+              "aria-checked": dark,
+              "aria-label": "Modo oscuro",
+            }, h("span", { className: "switch-knob" })),
+          ),
+          h("div", { style: { fontSize: 11.5, color: "var(--ink-400)", marginTop: 12, lineHeight: 1.5 } },
+            "La preferencia se aplica de inmediato y se recuerda en este equipo. También está disponible en la barra superior.",
+          ),
         ),
 
         // ── Resumen configuración activa ──────────────────────────────────
@@ -158,12 +149,12 @@ export function SettingsScreen({ prefs, onSave }) {
           h("div", { className: "section-title" }, "Configuración activa"),
           h("div", { style: { display: "flex", flexDirection: "column", gap: 8, fontSize: 13 } },
             h("div", { className: "row between" },
-              h("span", { style: { color: "var(--ink-500)" } }, "Modelo guardado"),
-              h("span", { className: "badge badge-info" }, MODELS.find((m) => m.id === prefs.modelId)?.name || prefs.modelId),
-            ),
-            h("div", { className: "row between" },
               h("span", { style: { color: "var(--ink-500)" } }, "Umbral guardado"),
               h("span", { className: "mono", style: { fontWeight: 700 } }, prefs.threshold.toFixed(2)),
+            ),
+            h("div", { className: "row between" },
+              h("span", { style: { color: "var(--ink-500)" } }, "Apariencia"),
+              h("span", { className: "badge badge-info" }, dark ? "Modo oscuro" : "Modo claro"),
             ),
             h("div", { className: "row between" },
               h("span", { style: { color: "var(--ink-500)" } }, "Pendiente guardar"),

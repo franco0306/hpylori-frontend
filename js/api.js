@@ -3,7 +3,7 @@
 // Contrato JSON esperado del endpoint POST {API_BASE_URL}{PREDICT_PATH}:
 // Request: multipart/form-data
 //   - file:      la imagen endoscópica (JPG/PNG)
-//   - model_id:  string, p.ej. "resnet50"
+//   - model_id:  siempre "resnet50" (ver CLINICAL_MODEL_ID)
 // Response (200 OK): JSON
 //   {
 //     "clase":         "Positivo" | "Negativo",
@@ -18,6 +18,14 @@
 import { CONFIG } from "./config.js";
 import { findModel } from "./models.js";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Modelo clínico único. La UI del gastroenterólogo NO expone la arquitectura
+// de red ni permite cambiarla: toda inferencia se ejecuta con ResNet50, que es
+// el modelo con mayor AUC (0.9524) del benchmarking. El backend sigue
+// soportando el resto de arquitecturas para uso experimental / investigación.
+// ─────────────────────────────────────────────────────────────────────────────
+export const CLINICAL_MODEL_ID = "resnet50";
+
 /**
  * Predicción real contra el backend.
  * @param {File|{src:string,name:string,type:string}} file
@@ -25,7 +33,8 @@ import { findModel } from "./models.js";
  * @returns {Promise<object>}
  */
 async function realPredict(file, opts = {}) {
-  const modelId = opts.modelId || "resnet50";
+  // Fijo, no negociable desde la interfaz clínica.
+  const modelId = CLINICAL_MODEL_ID;
   const fd = new FormData();
 
   // File real → envío directo. URL (http o data:) → fetch + Blob.
@@ -68,7 +77,7 @@ async function realPredict(file, opts = {}) {
  * Predicción simulada (modo demo). Útil para desarrollo de UI.
  */
 async function mockPredict(file, opts = {}) {
-  const model = findModel(opts.modelId);
+  const model = findModel(CLINICAL_MODEL_ID);
   const baseLat = model.metrics.latency_ms;
   const ms = Math.round(baseLat * (0.85 + Math.random() * 0.3));
   await new Promise((r) => setTimeout(r, ms));

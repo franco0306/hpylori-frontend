@@ -1,12 +1,11 @@
 // Panel lateral de marca para las pantallas de login/registro.
 
 import { I } from "../icons.js";
-import { MODELS } from "../models.js";
 
 const h = window.React.createElement;
 
 const FEATURES = [
-  { icon: "cube",    title: "Modelos de IA validados",  sub: MODELS.length + " arquitecturas (" + MODELS.map((m) => m.name).join(", ") + ") entrenadas y validadas para detectar H. pylori en imágenes endoscópicas." },
+  { icon: "cube",    title: "Modelo validado",          sub: "Motor de análisis validado sobre imágenes endoscópicas reales, con métricas de sensibilidad y especificidad publicadas." },
   { icon: "heat",    title: "Visualización Grad-CAM",   sub: "Mapas de calor que muestran en qué regiones de la imagen se enfoca el modelo." },
   { icon: "history", title: "Historial por estudio",    sub: "Consulta resultados anteriores organizados por paciente y fecha." },
   { icon: "shield",  title: "Datos privados por cuenta", sub: "Tu historial y configuración se guardan de forma segura, solo accesibles para ti." },

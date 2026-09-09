@@ -1,6 +1,7 @@
 import { I } from "../icons.js";
 import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
+import { CLINICAL_MODEL_ID } from "../api.js";
 
 const React = window.React;
 const { useState, useRef } = React;
@@ -72,7 +73,7 @@ export function BatchScreen({ model, threshold }) {
           fd.append("file", blob, it.name || "demo.jpg");
         }
 
-        fd.append("model_id", model.id);
+        fd.append("model_id", CLINICAL_MODEL_ID);
         if (threshold !== undefined && threshold !== null) {
           fd.append("threshold", String(threshold));
         }
@@ -146,7 +147,7 @@ export function BatchScreen({ model, threshold }) {
       h("div", null,
         h("h1", { className: "page-title" }, "Procesamiento por lote"),
         h("div", { className: "page-sub" },
-          "HU-003 · Hasta 50 imágenes · Modelo: ", h("strong", null, model.name)),
+          "Hasta 50 imágenes endoscópicas por serie"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
         h("button", { className: "btn btn-secondary", onClick: exportCSV, disabled: !done },

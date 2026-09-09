@@ -49,7 +49,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       const heat = file._s ? SAMPLES[file._s].heat : null;
       // Si hay un File real lo enviamos; si es muestra, mandamos el objeto con `src`.
       const payload = file._raw || file;
-      const res = await predict(payload, { modelId: model.id, positive, heat, threshold, forceError: opts.forceError });
+      // Sin `modelId`: la capa de API fija ResNet50 para toda la interfaz clínica.
+      const res = await predict(payload, { positive, heat, threshold, forceError: opts.forceError });
       clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
       saveStudy(file, res, patientName); // fire-and-forget
     } catch (e) {
@@ -180,12 +181,12 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     <div class="section-title">Resultado del análisis</div>
     <div class="result-box">
       <div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">CLASE PREDICHA</div>
-        <div class="result-class">${result.clase}${isPos ? " · H. pylori" : " · sin hallazgo"}</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">DIAGNÓSTICO SUGERIDO</div>
+        <div class="result-class">${isPos ? "Sospecha de infección por H. pylori" : "Mucosa sin hallazgos patológicos"}</div>
       </div>
       <div style="text-align:right">
         <div class="result-prob">${probPct}%</div>
-        <div class="result-prob-label">P(${result.clase.toLowerCase()})</div>
+        <div class="result-prob-label">Probabilidad</div>
       </div>
     </div>
   </div>
@@ -232,6 +233,10 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   };
 
   const positive = result && result.clase === "Positivo";
+  // Redacción clínica del veredicto: el médico lee un hallazgo, no una clase.
+  const diagnosis = positive
+    ? "Sospecha de infección por H. pylori"
+    : "Mucosa sin hallazgos patológicos";
   const probShown = result ? result.prob : 0;
   const conf = result ? result.prob : 0;
   const confTier = conf >= 0.85
@@ -245,7 +250,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       h("div", null,
         h("h1", { className: "page-title" }, "Análisis individual"),
         h("div", { className: "page-sub" },
-          "HU-001 · Inferencia con ", h("strong", null, model.name), " · objetivo < 2 000 ms",
+          "Análisis asistido de mucosa gástrica en tiempo real",
         ),
       ),
       h("button", { className: "btn btn-ghost", onClick: reset, disabled: phase === "loading" },
@@ -338,7 +343,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               }),
             ),
             h("div", { className: "row between", style: { marginTop: 12 } },
-              h("span", { className: "badge badge-info" }, "Modelo: " + model.name),
+              h("span", { className: "badge badge-info" }, "Listo para analizar"),
               h("div", { className: "row", style: { gap: 8 } },
                 h("button", { className: "btn btn-secondary", onClick: reset, disabled: phase === "loading" },
                   h(I.x, { size: 14 }), "Cambiar"),
@@ -379,11 +384,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       h("div", { className: "card" },
         h("div", { className: "card-head" },
           h("div", null,
-            h("h3", { className: "card-title" }, "2 · Resultado del modelo"),
-            h("div", { className: "card-sub" }, model.name + " " + model.version + " · " + model.arch),
+            h("h3", { className: "card-title" }, "2 · Resultado del análisis"),
+            h("div", { className: "card-sub" }, "Diagnóstico sugerido por IA · requiere validación clínica"),
           ),
           result && h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
-            result.clase.toUpperCase()),
+            positive ? "POSITIVO" : "NEGATIVO"),
         ),
         h("div", { className: "card-pad" },
           phase === "idle" && !result && h("div", { className: "result-empty" },
@@ -393,32 +398,32 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           ),
           phase === "loading" && h("div", { style: { textAlign: "center", padding: "20px 0" } },
             h("div", { className: "spinner" }),
-            h("div", { style: { fontWeight: 600 } }, "Procesando con " + model.name + "…"),
+            h("div", { style: { fontWeight: 600 } }, "Analizando imagen endoscópica…"),
             h("div", { className: "muted", style: { fontSize: 12.5, marginTop: 4 } },
-              "Pre-procesamiento → forward pass → Grad-CAM"),
+              "Procesando mucosa y generando mapa de zonas relevantes"),
             h("div", { className: "progress", style: { marginTop: 16 } },
               h("div", { className: "progress-fill", style: { width: progress + "%" } })),
             h("div", { className: "row between", style: { marginTop: 8, fontSize: 11.5, color: "var(--ink-500)" } },
               h("span", { className: "mono" }, progress + "%"),
-              h("span", { className: "mono" }, "objetivo < 2.0 s"),
+              h("span", null, "Suele tardar menos de 2 segundos"),
             ),
           ),
           phase === "done" && result && h("div", null,
             h("div", { className: "verdict " + (positive ? "verdict-pos" : "verdict-neg") },
               h("div", null,
-                h("div", { className: "verdict-label" }, "Clase predicha"),
+                h("div", { className: "verdict-label" }, "Diagnóstico sugerido"),
                 h("div", {
                   className: "verdict-value",
                   style: { color: positive ? "var(--red-600)" : "var(--green-600)" },
-                }, result.clase + (positive ? " · H. pylori" : " · sin hallazgo")),
+                }, diagnosis),
               ),
               h("div", { style: { textAlign: "right" } },
                 h("div", {
                   className: "verdict-prob",
                   style: { color: positive ? "var(--red-600)" : "var(--green-600)" },
                 }, (probShown * 100).toFixed(1) + "%"),
-                h("div", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
-                  "P(" + result.clase.toLowerCase() + ")"),
+                h("div", { style: { fontSize: 11, color: "var(--ink-500)" } },
+                  "Probabilidad"),
               ),
             ),
             h("div", { style: { marginTop: 16 } },
@@ -432,7 +437,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("div", { className: "confbar" },
                 h("div", { className: "confbar-fill", style: { width: (conf * 100) + "%", background: confTier.c } })),
             ),
-            h("div", { className: "metrics", style: { marginTop: 16 } },
+            h("div", { className: "metrics metrics-2", style: { marginTop: 16 } },
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Probabilidad"),
                 h("div", { className: "metric-value" }, (result.prob * 100).toFixed(2), h("small", null, "%"))),
@@ -442,9 +447,6 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                   className: "metric-value",
                   style: { color: result.latencia_ms < 2000 ? "var(--ink-900)" : "var(--red-600)" },
                 }, result.latencia_ms, h("small", null, "ms"))),
-              h("div", { className: "metric" },
-                h("div", { className: "metric-label" }, "Modelo"),
-                h("div", { className: "metric-value", style: { fontSize: 13 } }, model.version)),
             ),
             positive && h("div", { className: "alert alert-warn", style: { marginTop: 14 } },
               h(I.info, { size: 16 }),

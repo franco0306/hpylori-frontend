@@ -7,7 +7,33 @@
   --ink-900:#0F172A; --ink-700:#334155; --ink-500:#64748B; --ink-400:#94A3B8;
   --ink-300:#CBD5E1; --ink-200:#E2E8F0; --ink-100:#EEF2F6; --ink-50:#F7F9FC;
   --white:#FFFFFF;
+  color-scheme: light;
 }
+
+/* ── Modo oscuro (WCAG 2.1 AA) ─────────────────────────────────────────────
+   Pensado para salas de endoscopia de baja iluminación: se invierte la escala
+   de neutros y se aclaran los acentos para conservar ≥ 4.5:1 de contraste en
+   texto. Los colores semánticos de diagnóstico (rojo = positivo, verde =
+   negativo) se mantienen distinguibles en ambos temas.                       */
+:root[data-theme="dark"] {
+  --blue-900:#C7D8FF; --blue-700:#7DA0FF; --blue-600:#5B84F5;
+  --blue-100:#1E3564; --blue-50:#16233F;
+  --red-600:#F87171; --red-50:#2A1417; --red-100:#4A1D22;
+  --green-600:#4ADE80; --green-50:#0F2419; --green-100:#17402A;
+  --amber-600:#FBBF24; --amber-50:#2A2010;
+  --ink-900:#F1F5FB; --ink-700:#D3DBE8; --ink-500:#A3B0C6; --ink-400:#8595AE;
+  --ink-300:#3A4761; --ink-200:#27324A; --ink-100:#1B2436; --ink-50:#0B1120;
+  --white:#131A29;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .alert-error { color: #FECACA; }
+:root[data-theme="dark"] .alert-warn  { color: #FDE68A; border-color: #4A3A12; }
+:root[data-theme="dark"] .alert-info  { color: #DBEAFE; }
+:root[data-theme="dark"] .disclaimer  { color: #FDE68A; }
+:root[data-theme="dark"] .avatar,
+:root[data-theme="dark"] .brand-mark { color: #fff; }
+:root[data-theme="dark"] .btn-primary { color: #0B1120; }
+:root[data-theme="dark"] .preview-chip { background: rgba(0,0,0,.72); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -50,13 +76,30 @@ button { font-family: inherit; cursor: pointer; }
 .topbar-spacer { flex: 1; }
 .system-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-700); padding: 6px 10px; border: 1px solid var(--ink-200); border-radius: 999px; background: var(--white); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-600); box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
-.model-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--blue-50); color: var(--blue-700); border: 1px solid var(--blue-100); font-size: 12px; font-weight: 600; }
-.model-pill .mono { font-size: 11px; color: var(--blue-900); }
+.topbar-user { display: flex; align-items: center; gap: 8px; padding-left: 14px; margin-left: 2px; border-left: 1px solid var(--ink-200); }
+.topbar-user-name { font-size: 12.5px; font-weight: 600; color: var(--ink-700); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar-sm { width: 28px; height: 28px; font-size: 11px; }
+
+/* Interruptor de modo oscuro (accesibilidad) */
+.theme-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--ink-200); background: var(--white); color: var(--ink-700); font-size: 12px; font-weight: 600; transition: all 120ms ease; }
+.theme-toggle:hover { background: var(--ink-100); border-color: var(--ink-300); }
+.theme-toggle:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+
+/* Switch (Configuración) */
+.switch { position: relative; width: 44px; height: 24px; border-radius: 999px; border: 1px solid var(--ink-300); background: var(--ink-100); padding: 0; flex-shrink: 0; transition: background 150ms ease, border-color 150ms ease; }
+.switch.on { background: var(--blue-700); border-color: var(--blue-700); }
+.switch:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+.switch-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform 150ms ease; }
+.switch.on .switch-knob { transform: translateX(20px); }
 .content { padding: 28px 32px 24px; flex: 1; }
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; gap: 16px; }
 .page-title { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
 .page-sub { color: var(--ink-500); font-size: 13.5px; margin-top: 4px; }
-.disclaimer { border-top: 1px solid var(--ink-200); background: var(--amber-50); padding: 10px 32px; font-size: 12px; color: #78350F; display: flex; align-items: center; gap: 10px; }
+/* El contenido ocupa el alto disponible para que el aviso legal quede pegado
+   al pie incluso en pantallas cortas; en pantallas largas queda fijo (sticky). */
+.screen { flex: 1; display: flex; flex-direction: column; }
+.screen > * { flex: 1; }
+.disclaimer { position: sticky; bottom: 0; z-index: 6; border-top: 1px solid var(--ink-200); background: var(--amber-50); padding: 10px 32px; font-size: 12px; color: #78350F; display: flex; align-items: center; gap: 10px; }
 
 /* Cards */
 .card { background: var(--white); border: 1px solid var(--ink-200); border-radius: 12px; }
@@ -99,13 +142,15 @@ button { font-family: inherit; cursor: pointer; }
 .result-empty { border: 1px dashed var(--ink-300); border-radius: 12px; padding: 32px 20px; text-align: center; color: var(--ink-500); font-size: 13px; min-height: 280px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; background: var(--ink-50); }
 
 /* Verdict & metrics */
-.verdict { border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; border: 1px solid; }
+.verdict { border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid; }
+.verdict > div:last-child { flex-shrink: 0; }
 .verdict-pos { background: var(--red-50); border-color: var(--red-100); }
 .verdict-neg { background: var(--green-50); border-color: var(--green-100); }
 .verdict-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-700); }
-.verdict-value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.verdict-value { font-size: 19px; font-weight: 700; margin-top: 2px; line-height: 1.3; }
 .verdict-prob { font-family: "IBM Plex Mono", monospace; font-size: 32px; font-weight: 600; }
 .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--ink-200); border: 1px solid var(--ink-200); border-radius: 8px; overflow: hidden; }
+.metrics-2 { grid-template-columns: 1fr 1fr; }
 .metric { background: var(--white); padding: 14px 16px; }
 .metric-label { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
 .metric-value { font-family: "IBM Plex Mono", monospace; font-size: 18px; font-weight: 600; margin-top: 4px; }

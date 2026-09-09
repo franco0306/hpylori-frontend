@@ -10,17 +10,15 @@ function initials(user) {
   return src.slice(0, 2).toUpperCase();
 }
 
-export function Sidebar({ current, onNavigate, model, user, onLogout }) {
+// Navegación clínica. Las rutas técnicas (catálogo de modelos y comparativa de
+// arquitecturas) quedan fuera del menú: el gastroenterólogo no elige modelo.
+export function Sidebar({ current, onNavigate, user, onLogout }) {
   const items = [
     { id: "dashboard", label: "Panel principal",            icon: I.dash,    group: "Inicio" },
-    { id: "single",    label: "Análisis individual",        icon: I.upload,  group: "Diagnóstico", badge: "HU-001" },
-    { id: "heatmap",   label: "Visualización Grad-CAM",     icon: I.heat,    group: "Diagnóstico", badge: "HU-002" },
-    { id: "batch",     label: "Procesamiento por lote",     icon: I.layers,  group: "Diagnóstico", badge: "HU-003" },
-    { id: "models",    label: "Modelos disponibles",        icon: I.cube,    group: "IA" },
-    { id: "compare",   label: "Comparativa de modelos",     icon: I.bars,    group: "IA" },
+    { id: "single",    label: "Análisis individual",        icon: I.upload,  group: "Diagnóstico" },
+    { id: "heatmap",   label: "Visualización Grad-CAM",     icon: I.heat,    group: "Diagnóstico" },
     { id: "history",   label: "Historial de estudios",      icon: I.history, group: "Registros" },
     { id: "settings",  label: "Configuración",              icon: I.cog,     group: "Sistema" },
-    { id: "help",      label: "Manual de usuario",          icon: I.book,    group: "Sistema" },
   ];
   const groups = [...new Set(items.map((i) => i.group))];
 
@@ -29,7 +27,7 @@ export function Sidebar({ current, onNavigate, model, user, onLogout }) {
       h("div", { className: "brand-mark" }, "Hp"),
       h("div", null,
         h("div", { className: "brand-name" }, "EndoScan AI"),
-        h("div", { className: "brand-sub" }, model.name + " · " + model.version),
+        h("div", { className: "brand-sub" }, "Apoyo diagnóstico"),
       ),
     ),
     h("nav", { className: "nav" },

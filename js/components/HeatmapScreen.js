@@ -5,16 +5,6 @@ const React = window.React;
 const { useState } = React;
 const h = React.createElement;
 
-// Capa objetivo de Grad-CAM por arquitectura (debe reflejar core/loaders.py::get_target_layer).
-const TARGET_LAYER = {
-  resnet50:       "layer4",
-  mobilenetv3:    "features[-1]",
-  efficientnetb0: "features[-1]",
-  densenet121:    "features.denseblock4",
-  googlenet:      "inception5b",
-  vgg16:          "features",
-};
-
 const LEGEND_STOPS = [
   { pct: 0,   color: "#2347C5", label: "0.0" },
   { pct: 33,  color: "#16A34A", label: "0.3" },
@@ -93,7 +83,7 @@ async function buildPNG(sample, opacity, showHeat, caseKey) {
   a.click();
 }
 
-export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
+export function HeatmapScreen({ heatmapResult, onNewAnalysis }) {
   const [k, setK]               = useState("pos1");
   const [op, setOp]             = useState(0.65);
   const [show, setShow]         = useState(true);
@@ -124,7 +114,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Visualización Grad-CAM"),
-        h("div", { className: "page-sub" }, "HU-002 · Mapa de activación de " + model.name),
+        h("div", { className: "page-sub" }, "Zonas de la mucosa que sustentan el diagnóstico sugerido"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
         onNewAnalysis && h("button", {
@@ -165,7 +155,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
         h("div", { className: "card-head" },
           h("div", null,
             h("h3", { className: "card-title" }, "Grad-CAM"),
-            h("div", { className: "card-sub" }, "Capa " + (TARGET_LAYER[model.id] || "layer4") + " · " + model.name),
+            h("div", { className: "card-sub" }, "Mapa de calor superpuesto sobre la imagen endoscópica"),
           ),
           h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
             positive ? "POSITIVO" : "NEGATIVO"),
@@ -221,7 +211,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
       h("div", { className: "card card-pad" },
         h("div", { className: "section-title" }, "Explicación clínica"),
         isLive && heatmapResult.result && h("div", {
-          className: "metrics",
+          className: "metrics metrics-2",
           style: { marginBottom: 12 },
         },
           h("div", { className: "metric" },
@@ -232,14 +222,10 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
             h("div", { className: "metric-label" }, "Latencia"),
             h("div", { className: "metric-value" },
               heatmapResult.result.latencia_ms, h("small", null, "ms"))),
-          h("div", { className: "metric" },
-            h("div", { className: "metric-label" }, "Modelo"),
-            h("div", { className: "metric-value", style: { fontSize: 12 } },
-              heatmapResult.result.modelo || model.name)),
         ),
         positive
           ? h("p", { style: { fontSize: 13.5, color: "var(--ink-700)", lineHeight: 1.6, margin: 0 } },
-              "El modelo concentra su atención en el ",
+              "El análisis concentra la activación en el ",
               h("strong", null, "cuadrante superior-derecho"),
               ", donde se observa una zona de mucosa con ",
               h("strong", null, "patrón nodular irregular y enrojecimiento focal"),
@@ -247,7 +233,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
           : h("p", { style: { fontSize: 13.5, color: "var(--ink-700)", lineHeight: 1.6, margin: 0 } },
               "La activación es ",
               h("strong", null, "difusa y de baja magnitud"),
-              ", sin focos claros sobre la mucosa. El modelo no encuentra patrones discriminativos."),
+              ", sin focos claros sobre la mucosa. No se identifican patrones sugestivos de infección."),
         h("div", { className: "alert alert-info", style: { marginTop: 14 } },
           h(I.info, { size: 16 }),
           h("div", null,

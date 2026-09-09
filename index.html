@@ -8,6 +8,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
 
+  <!-- Aplica el tema guardado antes de pintar (evita el destello de blanco al
+       abrir la app en una sala de endoscopia a oscuras). -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("endoscan.theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+
   <!-- React UMD (producción ligera vía CDN). Reemplaza por tu propia copia si despliegas offline. -->
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>

@@ -34,6 +34,10 @@ export async function saveStudy(result, paciente = "") {
     clase:        result.clase,
     probabilidad: result.prob,
     latencia_ms:  result.latencia_ms,
+    // Referencias al almacén de objetos que devolvió `/predict`. Nunca la
+    // imagen: el servidor rechaza cualquier `data:` en estos campos.
+    image_url:    result.image_url || null,
+    gradcam_url:  result.gradcam_url || null,
   };
 
   const res = await authFetch(CONFIG.STUDIES_PATH, {

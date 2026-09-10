@@ -190,6 +190,48 @@ function iniciales(fila) {
   return (fuente.slice(0, 2) || "?").toUpperCase();
 }
 
+// ── Ayuda contextual del KPI de disponibilidad ───────────────────────────────
+// El disparador es un `button` con `aria-describedby`, no un `div` con
+// `role="tooltip"`: ese rol describe la BURBUJA, no al elemento que la abre, y
+// un `aria-label` sobre el contenedor sustituiría el texto en vez de anunciarlo.
+// Se muestra con :hover y :focus-within, así que funciona con teclado sin JS.
+function AyudaDisponibilidad() {
+  return h("span", { className: "kpi-help-tooltip" },
+    h("button", {
+      type: "button",
+      className: "kpi-help-icon",
+      "aria-label": "Cómo se calcula la disponibilidad del motor",
+      "aria-describedby": "ayuda-disponibilidad",
+    }, "?"),
+
+    h("span", {
+      className: "kpi-tooltip-bubble",
+      role: "tooltip",
+      id: "ayuda-disponibilidad",
+    },
+      h("strong", null, "Disponibilidad operativa (uptime)"),
+      h("p", null,
+        "Se comprueba la conectividad con el contenedor de Hugging Face mediante ",
+        "sondeos periódicos, cada dos minutos."),
+
+      h("span", { className: "tooltip-formula" },
+        h("code", null, "Disponibilidad = [(T_total − T_caída) / T_total] × 100")),
+
+      h("p", { className: "tooltip-meta" },
+        h("strong", null, "Objetivo 99.9 %: "),
+        "tolera un máximo de 43.2 minutos de inactividad acumulada sobre una ",
+        "ventana mensual de 30 días (720 h)."),
+
+      // Sin esta línea, la fórmula da a entender que el panel calcula un
+      // histórico. No lo hace: no se persiste el registro de caídas.
+      h("p", { className: "tooltip-meta" },
+        "La píldora refleja el resultado de la última comprobación, no una ",
+        "medición acumulada: el sistema aún no guarda histórico de caídas."),
+    ),
+  );
+}
+
+
 // ── Módulo: KPIs de gobernanza ───────────────────────────────────────────────
 // Cifras de cabecera del servicio, no del diagnóstico. Reutilizan la tarjeta
 // `KpiCard` del panel clínico para que ambas pantallas se lean igual.
@@ -246,7 +288,12 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
     }),
 
     h(KpiCard, {
-      label: "Disponibilidad del motor",
+      // La tarjeta deja de recortar: la burbuja del tooltip se sale de ella.
+      permitirDesborde: true,
+      label: h("span", { className: "kpi-header-with-help" },
+        h("span", { className: "kpi-title" }, "Disponibilidad del motor"),
+        h(AyudaDisponibilidad, null),
+      ),
       // Estado medido por la sonda, no una cifra de tiempo de servicio: nadie
       // registra el histórico de caídas, así que el 99.9 % va como objetivo.
       value: h("span", {

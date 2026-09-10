@@ -109,8 +109,15 @@ function DonutChart({ posRate, pos, neg, total }) {
 // ── KPI con barra de progreso ─────────────────────────────────────────────────
 // Exportado: el Panel de Administración usa la misma tarjeta para sus métricas
 // de gobernanza, de modo que ambas pantallas comparten aspecto y tokens.
-export function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor }) {
-  return h("div", { className: "kpi", style: { position: "relative", overflow: "hidden" } },
+// `permitirDesborde` deja salir contenido flotante (un tooltip, por ejemplo)
+// fuera de los límites de la tarjeta. La barra de acento superior lleva su
+// propio border-radius, así que recortar no le hace falta.
+export function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor,
+                          permitirDesborde = false }) {
+  return h("div", {
+    className: "kpi",
+    style: { position: "relative", overflow: permitirDesborde ? "visible" : "hidden" },
+  },
     // Barra de acento superior
     h("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: barColor, borderRadius: "12px 12px 0 0" } }),
     h("div", { className: "kpi-label" }, label),

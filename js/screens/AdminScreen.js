@@ -211,8 +211,8 @@ function AyudaDisponibilidad() {
     },
       h("strong", null, "Disponibilidad operativa (uptime)"),
       h("p", null,
-        "Se comprueba la conectividad con el contenedor de Hugging Face mediante ",
-        "sondeos periódicos, cada dos minutos."),
+        "Audita en tiempo real la conectividad con el motor de inferencia en ",
+        "Hugging Face mediante sondeos de salud periódicos, cada dos minutos."),
 
       h("span", { className: "tooltip-formula" },
         h("code", null, "Disponibilidad = [(T_total − T_caída) / T_total] × 100")),
@@ -220,7 +220,7 @@ function AyudaDisponibilidad() {
       h("p", { className: "tooltip-meta" },
         h("strong", null, "Objetivo 99.9 %: "),
         "tolera un máximo de 43.2 minutos de inactividad acumulada sobre una ",
-        "ventana mensual de 30 días (720 h)."),
+        "ventana mensual continua de 30 días (720 horas)."),
 
       // Sin esta línea, la fórmula da a entender que el panel calcula un
       // histórico. No lo hace: no se persiste el registro de caídas.
@@ -1034,7 +1034,7 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                         // llevan siempre la cifra real, sin amplificar.
                         h("div", {
                           className: "storage-fill",
-                          style: { width: Math.min(100, Math.max(pctCuota * 10, 1.5)) + "%" },
+                          style: { width: Math.min(100, Math.max(pctCuota * 10, 2)) + "%" },
                         }),
                       ),
                       h("span", { className: "storage-pct" }, fmtPctCuota(pctCuota)),
@@ -1043,13 +1043,10 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                       u.estudios + (u.estudios === 1 ? " estudio" : " estudios") +
                       (u.kb_estimados ? " · " + u.kb_estimados + " KB" : "")),
                   )
-                // Misma estructura para que las barras y los porcentajes queden
-                // alineados entre filas; solo cambia el tono.
-                : h("div", { className: "storage-cell storage-cell-vacia" },
-                    h("div", { className: "storage-bar-row" },
-                      h("div", { className: "storage-track", "aria-hidden": true }),
-                      h("span", { className: "storage-pct" }, fmtPctCuota(0)),
-                    ),
+                // Sin estudios no se pinta una barra vacía: un guion dice
+                // "no aplica", que es más honesto que un 0 % con su pista.
+                : h("div", { className: "storage-cell storage-empty" },
+                    h("span", { className: "storage-none", "aria-hidden": true }, "—"),
                     h("span", { className: "storage-meta" }, "Sin estudios"),
                   )),
 

@@ -484,7 +484,13 @@ button { font-family: inherit; cursor: pointer; }
    Dos filas: barra + porcentaje arriba, detalle en texto pequeño debajo. En
    una sola línea, el porcentaje y el recuento competían por el mismo espacio y
    la barra quedaba a merced de la longitud del texto.                        */
-.storage-cell { display: flex; flex-direction: column; gap: 4px; min-width: 152px; }
+/* Ancho fijo: con ancho automatico cada fila daba una medida distinta a su
+   barra y las columnas no se podian comparar entre si de un vistazo.        */
+.storage-cell { display: flex; flex-direction: column; gap: 4px; width: 160px; }
+
+/* Cuenta sin estudios: un guion en lugar de una pista vacia. */
+.storage-empty { gap: 2px; }
+.storage-none { font-size: 15px; line-height: 1; color: var(--ink-300); }
 .storage-bar-row { display: flex; align-items: center; gap: 8px; }
 
 .storage-track {
@@ -508,8 +514,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Cuenta sin estudios: conserva la estructura para no romper la alineación de
    la columna, pero se apaga para que no compita con las que sí ocupan.      */
-.storage-cell-vacia .storage-pct,
-.storage-cell-vacia .storage-meta { color: var(--ink-400); font-weight: 500; }
+.storage-empty .storage-meta { color: var(--ink-400); }
 
 /* La barra global cambia de color con el semáforo de capacidad. */
 .admin-quota-fill.quota-alerta  { background: var(--amber-600); }
@@ -681,24 +686,50 @@ button { font-family: inherit; cursor: pointer; }
      contenido, y la fila de accesos en horizontal medía 1450 px, estirando la
      página entera en lugar de desplazarse dentro de su propia barra.        */
   .app { grid-template-columns: minmax(0, 1fr); }
+
+  /* La marca y el perfil comparten fila, y los accesos ocupan la siguiente.
+     Apilados eran tres bandas de cromo antes de llegar al contenido, y en una
+     pantalla de 844 px de alto eso se come el titulo de la pantalla.        */
   .sidebar {
     position: static; height: auto; width: 100%; min-width: 0;
+    flex-direction: row; flex-wrap: wrap; align-items: center;
     border-right: 0; border-bottom: 1px solid var(--ink-200);
   }
-  .brand { padding: 12px 16px; min-width: 0; }
+  .brand { flex: 1; min-width: 0; padding: 10px 14px; border-bottom: 0; }
+  .brand-sub { display: none; }
+
+  .sidebar-footer {
+    order: 2; width: auto; margin-top: 0;
+    padding: 8px 12px; border-top: 0; gap: 8px;
+  }
+  /* "Administrador · franco@clinica.pe" es la línea que hinchaba la banda: el
+     rol ya se ve en el menú y el correo no se necesita para navegar.        */
+  .sidebar-footer .user-role { display: none; }
+  .sidebar-footer .user-name { max-width: 120px; overflow: hidden;
+                               text-overflow: ellipsis; white-space: nowrap; }
+
   .nav {
+    order: 3; flex-basis: 100%;
     display: flex; flex-direction: row; gap: 4px; min-width: 0;
     overflow-x: auto; padding: 0 10px 8px;
     -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--ink-100);
   }
   /* Los rótulos de sección ("DIAGNÓSTICO", "REGISTROS") ocupan un ancho que
      en horizontal no aporta nada.                                           */
   .nav-section { display: none; }
   .nav-item { white-space: nowrap; flex-shrink: 0; }
-  .sidebar-footer { border-top: 1px solid var(--ink-100); }
 
-  .topbar { padding: 0 14px; gap: 10px; }
-  .crumbs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Mas baja y sin el usuario: el avatar y el nombre ya salen en la banda
+     de perfil de arriba, y repetirlos solo gastaba altura util.             */
+  .topbar { height: 46px; padding: 0 14px; gap: 10px; }
+  .topbar-user { display: none; }
+  /* De la miga de pan solo sobrevive el tramo actual. Con los tres tramos, el
+     último se cortaba a la mitad ("Análisi") y no se entendía nada.         */
+  .crumbs { min-width: 0; flex-shrink: 1; }
+  .crumbs span, .crumbs svg { display: none; }
+  .crumbs strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .theme-toggle { white-space: nowrap; flex-shrink: 0; }
   .topbar-user-name { max-width: 96px; }
 
   .content { padding: 18px 14px 72px; }
@@ -758,6 +789,11 @@ button { font-family: inherit; cursor: pointer; }
   .topbar-user { padding-left: 8px; }
 
   .metrics, .metrics-2 { grid-template-columns: 1fr; }
-  .storage-cell { min-width: 120px; }
+  .storage-cell { width: 132px; }
   .dropdown-menu { min-width: 196px; }
+
+  /* A este ancho el rótulo del botón de tema sobra: el icono ya lo dice. */
+  .theme-toggle span { display: none; }
+  .crumbs { display: none; }
+  .brand-name { font-size: 13px; }
 }

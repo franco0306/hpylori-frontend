@@ -313,6 +313,158 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
 }
 
 // ── Módulo: auditoría de base de datos y almacenamiento ──────────────────────
+
+/** Entero con separador de millares. 128000 filas se leen mucho mejor así. */
+function fmtNumero(n) {
+  return Number.isFinite(n) ? Number(n).toLocaleString("es-PE") : "—";
+}
+
+function DesgloseTablas({ tablas, bytesTotales }) {
+  if (!tablas || !tablas.length) return null;   // early return
+
+  return h("div", { className: "card card-pad", style: { marginTop: 20 } },
+    h("div", { className: "section-title" }, "Desglose por tabla"),
+    h("p", { className: "seccion-nota" },
+      "Peso físico de cada tabla del esquema, índices incluidos. La cuota se ",
+      "mide sobre ", h("code", null, "studies"), ", que es la única que crece con ",
+      "el uso; el resto se mantiene prácticamente constante.",
+    ),
+
+    h("div", { className: "table-wrap" },
+      h("table", { className: "table" },
+        h("thead", null, h("tr", null,
+          h("th", null, "Tabla"),
+          h("th", null, "Filas"),
+          h("th", null, "Tamaño"),
+          h("th", null, "Proporción"),
+        )),
+        h("tbody", null,
+          tablas.map((t) => {
+            const pct = bytesTotales > 0 ? (t.bytes / bytesTotales) * 100 : 0;
+            return h("tr", { key: t.nombre },
+              h("td", null,
+                h("div", { style: { fontWeight: 500 } }, t.etiqueta),
+                h("div", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
+                  t.nombre),
+              ),
+              h("td", { className: "mono" }, fmtNumero(t.filas)),
+              h("td", { className: "mono" },
+                fmtBytes(t.bytes),
+                t.estimado && h("span", { title: "El motor no informa el tamaño real: se estima desde el número de filas" },
+                  " ≈"),
+              ),
+              h("td", null,
+                h("div", { className: "storage-cell" },
+                  h("div", { className: "storage-bar-row" },
+                    h("div", {
+                      className: "storage-track",
+                      role: "img",
+                      "aria-label": t.etiqueta + " ocupa el " + pct.toFixed(1) +
+                                    " por ciento de la base",
+                    },
+                      h("div", {
+                        className: "storage-fill",
+                        style: { width: Math.min(100, Math.max(pct, 2)) + "%" },
+                      }),
+                    ),
+                    h("span", { className: "storage-pct" }, pct.toFixed(1) + "%"),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    ),
+  );
+}
+
+
+function ProyeccionCapacidad({ proyeccion, limiteMb }) {
+  if (!proyeccion) return null;   // early return
+
+  const dias = proyeccion.dias_para_saturacion;
+  const sinRitmo = dias === null || dias === undefined;
+  const lejano = !sinRitmo && !proyeccion.fecha_saturacion;
+
+  const saturacion = sinRitmo ? "—"
+                   : lejano ? "> 10 años"
+                   : fmtNumero(dias) + " días";
+
+  // Con la base casi vacía y el ritmo actual, la fecha cae tan lejos que darla
+  // sería fingir precisión. El servidor devuelve `null` y aquí se dice por qué.
+  const pieSaturacion = sinRitmo
+    ? "Sin actividad en la ventana: no hay ritmo que extrapolar"
+    : lejano ? "Al ritmo actual, fuera de todo horizonte de planificación"
+             : "Fecha estimada: " + proyeccion.fecha_saturacion;
+
+  return h("div", { className: "card card-pad", style: { marginTop: 20 } },
+    h("div", { className: "section-title" }, "Proyección de capacidad"),
+    h("p", { className: "seccion-nota" },
+      "Extrapolación lineal del ritmo de los últimos ", proyeccion.ventana_dias,
+      " días sobre los ", limiteMb, " MB contratados. Es una tendencia, no una ",
+      "predicción: cambia en cuanto cambia el uso.",
+    ),
+
+    h("div", { className: "admin-metrics admin-metrics-4" },
+      h("div", { className: "admin-metric" },
+        h("div", { className: "admin-metric-label" }, "Ritmo de registro"),
+        h("div", { className: "admin-metric-value" }, proyeccion.estudios_por_dia),
+        h("div", { className: "admin-metric-hint" },
+          "estudios/día · " + fmtNumero(proyeccion.estudios_en_ventana) +
+          " en " + proyeccion.ventana_dias + " días"),
+      ),
+      h("div", { className: "admin-metric" },
+        h("div", { className: "admin-metric-label" }, "Crecimiento"),
+        h("div", { className: "admin-metric-value" }, fmtBytes(proyeccion.bytes_por_dia)),
+        h("div", { className: "admin-metric-hint" }, "por día, al ritmo actual"),
+      ),
+      h("div", { className: "admin-metric" },
+        h("div", { className: "admin-metric-label" }, "Espacio libre"),
+        h("div", { className: "admin-metric-value" }, fmtBytes(proyeccion.bytes_libres)),
+        h("div", { className: "admin-metric-hint" }, "hasta agotar la cuota"),
+      ),
+      h("div", { className: "admin-metric" },
+        h("div", { className: "admin-metric-label" }, "Saturación estimada"),
+        h("div", { className: "admin-metric-value" }, saturacion),
+        h("div", { className: "admin-metric-hint" }, pieSaturacion),
+      ),
+    ),
+  );
+}
+
+
+function Mantenimiento({ purgando, purgaResultado, onPurgar }) {
+  return h("div", { className: "card card-pad", style: { marginTop: 20 } },
+    h("div", { className: "section-title" }, "Mantenimiento"),
+    h("p", { className: "seccion-nota" },
+      "La purga elimina estudios cuyo usuario ya no existe, que quedan huérfanos ",
+      "tras un borrado manual en la base. No toca ningún estudio con dueño: el ",
+      "historial clínico de las cuentas activas no se ve afectado.",
+    ),
+
+    purgaResultado && h("div", {
+      className: "alert " + (purgaResultado.ok ? "alert-info" : "alert-warn"),
+      style: { marginBottom: 12 },
+      role: "status",
+    },
+      h(purgaResultado.ok ? I.check : I.alert, { size: 14 }),
+      h("div", { style: { fontSize: 12.5 } }, purgaResultado.mensaje),
+    ),
+
+    h("button", {
+      className: "btn btn-secondary",
+      onClick: onPurgar,
+      disabled: purgando,
+      "aria-label": "Purgar registros huérfanos de la base de datos",
+    },
+      purgando ? h("span", { className: "spinner-sm" }) : h(I.trash, { size: 14 }),
+      purgando ? "Purgando…" : "Purgar registros huérfanos",
+    ),
+  );
+}
+
+
 function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
                                    purgando, purgaResultado, onPurgar }) {
   const bytes = datos ? datos.bytes_ocupados : 0;
@@ -344,93 +496,89 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
     );
   }
 
-  return h("div", { className: "card card-pad" },
-    h("div", { className: "section-title" }, "Auditoría de base de datos y almacenamiento"),
+  return h("div", null,
+    h("div", { className: "card card-pad" },
+      h("div", { className: "section-title" }, "Consumo de la cuota contratada"),
 
-    h("div", { className: "admin-metrics" },
-      h("div", { className: "admin-metric" },
-        h("div", { className: "admin-metric-label" }, "Estudios registrados"),
-        h("div", { className: "admin-metric-value" }, valor(datos && datos.estudios_totales)),
-        h("div", { className: "admin-metric-hint" }, "Filas en la tabla de estudios"),
+      h("div", { className: "admin-metrics" },
+        h("div", { className: "admin-metric" },
+          h("div", { className: "admin-metric-label" }, "Estudios registrados"),
+          h("div", { className: "admin-metric-value" },
+            valor(datos && fmtNumero(datos.estudios_totales))),
+          h("div", { className: "admin-metric-hint" }, "Filas en la tabla de estudios"),
+        ),
+        h("div", { className: "admin-metric" },
+          h("div", { className: "admin-metric-label" }, "Almacenamiento ocupado"),
+          h("div", { className: "admin-metric-value" }, valor(fmtBytes(bytes))),
+          h("div", { className: "admin-metric-hint" },
+            estimado ? "≈ 200 B por estudio (estimado)" : "Tamaño real de la tabla"),
+        ),
+        h("div", { className: "admin-metric" },
+          h("div", { className: "admin-metric-label" }, "Cuota consumida"),
+          h("div", { className: "admin-metric-value" }, valor(consumoTexto + " %")),
+          h("div", { className: "admin-metric-hint" }, "Sobre " + limiteMb + " MB contratados"),
+        ),
       ),
-      h("div", { className: "admin-metric" },
-        h("div", { className: "admin-metric-label" }, "Almacenamiento ocupado"),
-        h("div", { className: "admin-metric-value" }, valor(fmtBytes(bytes))),
-        h("div", { className: "admin-metric-hint" },
-          estimado ? "≈ 200 B por estudio (estimado)" : "Tamaño real de la tabla"),
-      ),
-      h("div", { className: "admin-metric" },
-        h("div", { className: "admin-metric-label" }, "Cuota consumida"),
-        h("div", { className: "admin-metric-value" }, valor(consumoTexto + " %")),
-        h("div", { className: "admin-metric-hint" }, "Sobre " + limiteMb + " MB contratados"),
-      ),
-    ),
 
-    h("div", {
-      className: "admin-quota",
-      role: "img",
-      "aria-label": "Cuota consumida: " + consumoTexto + " por ciento",
-    },
       h("div", {
-        className: "admin-quota-fill quota-" + ((datos && datos.estado_infraestructura) || "optimo"),
-        style: { width: anchoBarra + "%" },
-      }),
-    ),
+        className: "admin-quota",
+        role: "img",
+        "aria-label": "Cuota consumida: " + consumoTexto + " por ciento",
+      },
+        h("div", {
+          className: "admin-quota-fill quota-" + ((datos && datos.estado_infraestructura) || "optimo"),
+          style: { width: anchoBarra + "%" },
+        }),
+      ),
 
-    // Banner de capacidad. En estado óptimo basta una píldora discreta: un
-    // aviso a pantalla completa para decir que todo va bien acaba ignorándose,
-    // y con él se ignorarían los dos que sí importan.
-    semaforo && !cargando && (
-      datos.estado_infraestructura === "optimo"
-        ? h("div", { className: "pill-estado", style: { marginTop: 16 } },
-            h("span", { className: "dot", "aria-hidden": true }),
-            semaforo.texto)
-        : h("div", {
-            className: "alert " + semaforo.clase,
-            style: { marginTop: 16 },
-            role: "status",
-          },
-            h(I[semaforo.icono], { size: 14 }),
-            h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
-              h("strong", null, datos.estado_infraestructura === "critico"
-                ? "Saturación inminente. " : "Capacidad en aviso. "),
-              semaforo.texto,
-            ),
-          )
-    ),
+      // Banner de capacidad. En estado óptimo basta una píldora discreta: un
+      // aviso a pantalla completa para decir que todo va bien acaba ignorándose,
+      // y con él se ignorarían los dos que sí importan.
+      semaforo && !cargando && (
+        datos.estado_infraestructura === "optimo"
+          ? h("div", { className: "pill-estado", style: { marginTop: 16 } },
+              h("span", { className: "dot", "aria-hidden": true }),
+              semaforo.texto)
+          : h("div", {
+              className: "alert " + semaforo.clase,
+              style: { marginTop: 16 },
+              role: "status",
+            },
+              h(I[semaforo.icono], { size: 14 }),
+              h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
+                h("strong", null, datos.estado_infraestructura === "critico"
+                  ? "Saturación inminente. " : "Capacidad en aviso. "),
+                semaforo.texto,
+              ),
+            )
+      ),
 
-    // El aviso aparece solo cuando las cifras son de verdad estimadas: en
-    // PostgreSQL el servidor devuelve el tamaño real de la tabla.
-    estimado && !cargando && h("div", { className: "alert alert-info", style: { marginTop: 16 } },
-      h(I.info, { size: 14 }),
-      h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
-        h("strong", null, "Cifras estimadas. "),
-        "El motor de base de datos no informa el tamaño real de la tabla, así que ",
-        "se calcula desde el número de estudios y el tamaño conocido del esquema.",
+      // El aviso aparece solo cuando las cifras son de verdad estimadas: en
+      // PostgreSQL el servidor devuelve el tamaño real de la tabla.
+      estimado && !cargando && h("div", { className: "alert alert-info", style: { marginTop: 12 } },
+        h(I.info, { size: 14 }),
+        h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
+          h("strong", null, "Cifras estimadas. "),
+          "El motor de base de datos no informa el tamaño real de las tablas, así ",
+          "que se calcula desde el número de filas y el tamaño conocido del esquema.",
+        ),
       ),
     ),
 
-    purgaResultado && h("div", {
-      className: "alert " + (purgaResultado.ok ? "alert-info" : "alert-warn"),
-      style: { marginTop: 12 },
-      role: "status",
-    },
-      h(purgaResultado.ok ? I.check : I.alert, { size: 14 }),
-      h("div", { style: { fontSize: 12.5 } }, purgaResultado.mensaje),
-    ),
+    !cargando && datos && h(DesgloseTablas, {
+      tablas: datos.tablas,
+      bytesTotales: datos.bytes_totales_bd,
+    }),
 
-    h("button", {
-      className: "btn btn-secondary",
-      style: { marginTop: 16 },
-      onClick: onPurgar,
-      disabled: purgando,
-      "aria-label": "Purgar registros huérfanos y temporales de la base de datos",
-    },
-      purgando ? h("span", { className: "spinner-sm" }) : h(I.trash, { size: 14 }),
-      purgando ? "Purgando…" : "Purgar registros huérfanos/temporales",
-    ),
+    !cargando && datos && h(ProyeccionCapacidad, {
+      proyeccion: datos.proyeccion,
+      limiteMb,
+    }),
+
+    h(Mantenimiento, { purgando, purgaResultado, onPurgar }),
   );
 }
+
 
 // ── Modal: restablecer contraseña ────────────────────────────────────────────
 const FOCUSABLE =

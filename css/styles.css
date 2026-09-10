@@ -470,15 +470,36 @@ button { font-family: inherit; cursor: pointer; }
 .admin-users .col-acciones { width: 64px; text-align: right; }
 .admin-users th:nth-child(6), .admin-users td:nth-child(6) { width: 190px; }
 
-/* Cuota de cada cuenta sobre el historial completo. */
-.cuota-celda { display: flex; align-items: center; gap: 8px; }
-.bar-mini {
-  flex-shrink: 0; width: 56px; height: 6px;
-  border-radius: 999px; background: var(--ink-100);
-  border: 1px solid var(--ink-200); overflow: hidden;
+/* Cuota de cada cuenta sobre el historial completo.
+   Dos filas: barra + porcentaje arriba, detalle en texto pequeño debajo. En
+   una sola línea, el porcentaje y el recuento competían por el mismo espacio y
+   la barra quedaba a merced de la longitud del texto.                        */
+.storage-cell { display: flex; flex-direction: column; gap: 4px; min-width: 152px; }
+.storage-bar-row { display: flex; align-items: center; gap: 8px; }
+
+.storage-track {
+  flex: 1; height: 6px; border-radius: 999px;
+  background: var(--ink-100); border: 1px solid var(--ink-200);
+  overflow: hidden;
 }
-.bar-mini-fill { height: 100%; border-radius: 999px; background: var(--blue-700); }
-.cuota-texto { font-size: 11.5px; color: var(--ink-600); font-family: "IBM Plex Mono", monospace; }
+.storage-fill {
+  height: 100%; border-radius: 999px;
+  background: var(--blue-700); transition: width .4s ease;
+}
+
+/* Ancho fijo y cifras tabulares: así las comas decimales quedan en la misma
+   columna vertical y los porcentajes se comparan de un vistazo.             */
+.storage-pct {
+  flex-shrink: 0; min-width: 44px; text-align: right;
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600;
+  color: var(--ink-900); font-variant-numeric: tabular-nums;
+}
+.storage-meta { font-size: 10.5px; color: var(--ink-500); }
+
+/* Cuenta sin estudios: conserva la estructura para no romper la alineación de
+   la columna, pero se apaga para que no compita con las que sí ocupan.      */
+.storage-cell-vacia .storage-pct,
+.storage-cell-vacia .storage-meta { color: var(--ink-400); font-weight: 500; }
 
 /* La barra global cambia de color con el semáforo de capacidad. */
 .admin-quota-fill.quota-alerta  { background: var(--amber-600); }

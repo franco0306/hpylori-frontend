@@ -893,6 +893,9 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
           const nombre = u.name || u.full_name || "—";
           const fecha = fmtFechaHora(u.last_login);
           const destino = rol === ROLES.ADMIN ? ROLES.MEDICO : ROLES.ADMIN;
+          // Se normaliza a número: un backend anterior no envía el campo, y
+          // `undefined.toFixed()` tumbaría la tabla entera.
+          const pctAlmacen = Number(u.pct_almacenamiento) || 0;
 
           return h("tr", { key: u.id || u.email },
             h("td", null,
@@ -950,23 +953,35 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
             // proporcional al número de estudios, no una medida por fila.
             h("td", null,
               u.estudios
-                ? h("div", { className: "cuota-celda" },
-                    h("div", {
-                      className: "bar-mini",
-                      role: "img",
-                      "aria-label": "Ocupa el " + (u.pct_almacenamiento || 0) +
-                                    " por ciento del historial",
-                    },
+                ? h("div", { className: "storage-cell" },
+                    h("div", { className: "storage-bar-row" },
                       h("div", {
-                        className: "bar-mini-fill",
-                        style: { width: Math.min(100, Math.max(2, u.pct_almacenamiento || 0)) + "%" },
-                      }),
+                        className: "storage-track",
+                        title: pctAlmacen.toFixed(1) + "% de la cuota activa",
+                        role: "img",
+                        "aria-label": "Ocupa el " + pctAlmacen.toFixed(1) +
+                                      " por ciento del historial del sistema",
+                      },
+                        h("div", {
+                          className: "storage-fill",
+                          style: { width: Math.min(pctAlmacen, 100) + "%" },
+                        }),
+                      ),
+                      h("span", { className: "storage-pct" }, pctAlmacen.toFixed(1) + "%"),
                     ),
-                    h("span", { className: "cuota-texto" },
-                      (u.pct_almacenamiento || 0) + "% (" + u.estudios +
-                      (u.kb_estimados ? " / ~" + u.kb_estimados + " KB" : "") + ")"),
+                    h("span", { className: "storage-meta" },
+                      u.estudios + (u.estudios === 1 ? " estudio" : " estudios") +
+                      (u.kb_estimados ? " · " + u.kb_estimados + " KB" : "")),
                   )
-                : h("span", { className: "muted", style: { fontSize: 12 } }, "0% (0)")),
+                // Misma estructura para que las barras y los porcentajes queden
+                // alineados entre filas; solo cambia el tono.
+                : h("div", { className: "storage-cell storage-cell-vacia" },
+                    h("div", { className: "storage-bar-row" },
+                      h("div", { className: "storage-track", "aria-hidden": true }),
+                      h("span", { className: "storage-pct" }, "0.0%"),
+                    ),
+                    h("span", { className: "storage-meta" }, "Sin estudios"),
+                  )),
 
             h("td", { className: "col-acciones" },
               h(MenuAcciones, {

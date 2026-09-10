@@ -128,6 +128,18 @@ const SEMAFORO = {
   },
 };
 
+/**
+ * Impacto de una cuenta sobre la cuota contratada.
+ *
+ * Un consumo real pero diminuto no puede mostrarse como `0.00%`: eso se lee
+ * como "no ocupa nada", que es una afirmación distinta. Cero de verdad sí es
+ * cero.
+ */
+function fmtPctCuota(pct) {
+  if (!pct) return "0%";
+  return pct < 0.01 ? "<0.01%" : pct.toFixed(2) + "%";
+}
+
 /** Porcentaje de cuota con precisión suficiente para que un 0.03 % no sea 0 %. */
 function fmtPct(pct) {
   if (!Number.isFinite(pct)) return "—";
@@ -841,9 +853,13 @@ function ModalEliminar({ fila, borrando, error, onConfirmar, onCerrar }) {
 
 // ── Módulo: gestión de cuentas ───────────────────────────────────────────────
 function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando, aviso,
-                          menuAbierto, onAlternarMenu, onCerrarMenu,
+                          limiteMb, menuAbierto, onAlternarMenu, onCerrarMenu,
                           onCambiarRol, onRestablecer, onEditar, onCambiarEstado,
                           onEliminar, onReintentar }) {
+  // Solo para el rótulo del título emergente; el porcentaje ya viene calculado
+  // contra este mismo límite desde el servidor.
+  const limiteCuotaMb = limiteMb || CUOTA_MB;
+
   const cuerpo = () => {
     if (cargando) {
       return h("div", { className: "admin-vacio", role: "status" },
@@ -893,9 +909,13 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
           const nombre = u.name || u.full_name || "—";
           const fecha = fmtFechaHora(u.last_login);
           const destino = rol === ROLES.ADMIN ? ROLES.MEDICO : ROLES.ADMIN;
+          // Impacto sobre la cuota contratada, que es la pregunta de capacidad.
+          // `pct_almacenamiento` mide otra cosa —qué parte del historial es
+          // suya— y por eso no manda aquí: con la base al 0.05 %, tener el 67 %
+          // de los estudios no supone riesgo alguno de infraestructura.
           // Se normaliza a número: un backend anterior no envía el campo, y
           // `undefined.toFixed()` tumbaría la tabla entera.
-          const pctAlmacen = Number(u.pct_almacenamiento) || 0;
+          const pctCuota = Number(u.pct_cuota_sistema) || 0;
 
           return h("tr", { key: u.id || u.email },
             h("td", null,
@@ -957,17 +977,20 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                     h("div", { className: "storage-bar-row" },
                       h("div", {
                         className: "storage-track",
-                        title: pctAlmacen.toFixed(1) + "% de la cuota activa",
+                        title: pctCuota + "% de la cuota total de " + limiteCuotaMb + " MB",
                         role: "img",
-                        "aria-label": "Ocupa el " + pctAlmacen.toFixed(1) +
-                                      " por ciento del historial del sistema",
+                        "aria-label": "Ocupa el " + fmtPctCuota(pctCuota) +
+                                      " de la cuota contratada",
                       },
+                        // La barra amplifica x10 para que un consumo minúsculo
+                        // siga siendo visible; el número de al lado y el título
+                        // llevan siempre la cifra real, sin amplificar.
                         h("div", {
                           className: "storage-fill",
-                          style: { width: Math.min(pctAlmacen, 100) + "%" },
+                          style: { width: Math.min(100, Math.max(pctCuota * 10, 1.5)) + "%" },
                         }),
                       ),
-                      h("span", { className: "storage-pct" }, pctAlmacen.toFixed(1) + "%"),
+                      h("span", { className: "storage-pct" }, fmtPctCuota(pctCuota)),
                     ),
                     h("span", { className: "storage-meta" },
                       u.estudios + (u.estudios === 1 ? " estudio" : " estudios") +
@@ -978,7 +1001,7 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                 : h("div", { className: "storage-cell storage-cell-vacia" },
                     h("div", { className: "storage-bar-row" },
                       h("div", { className: "storage-track", "aria-hidden": true }),
-                      h("span", { className: "storage-pct" }, "0.0%"),
+                      h("span", { className: "storage-pct" }, fmtPctCuota(0)),
                     ),
                     h("span", { className: "storage-meta" }, "Sin estudios"),
                   )),
@@ -1349,6 +1372,7 @@ export function AdminScreen({ section = "panel", user }) {
       idPropio: user && user.id,
       cambiando,
       aviso,
+      limiteMb: almacenamiento && almacenamiento.limite_mb,
       menuAbierto,
       onAlternarMenu: handleAlternarMenu,
       onCerrarMenu: handleCerrarMenu,

@@ -33,7 +33,13 @@ export const CLINICAL_MODEL_ID = "resnet50";
  * @param {{modelId?:string}} opts
  * @returns {Promise<object>}
  */
-async function realPredict(file, opts = {}) {
+// Un arranque en frio del Space puede tardar cerca de un minuto: el
+// contenedor se reconstruye y ResNet50 se carga desde disco. Un unico
+// reintento cubre el caso sin castigar al usuario con esperas dobles cuando
+// el fallo es de verdad.
+const ESPERA_REINTENTO_MS = 2500;
+
+async function realPredict(file, opts = {}, esReintento = false) {
   // Fijo, no negociable desde la interfaz clínica.
   const modelId = CLINICAL_MODEL_ID;
   const fd = new FormData();
@@ -68,10 +74,25 @@ async function realPredict(file, opts = {}) {
       headers: token ? { Authorization: "Bearer " + token } : undefined,
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error("HTTP_" + res.status);
+    if (!res.ok) {
+      // Se adjunta el codigo para que la pantalla pueda decir QUE fallo en vez
+      // de culpar siempre al tiempo de espera.
+      const fallo = new Error("HTTP_" + res.status);
+      fallo.estado = res.status;
+      throw fallo;
+    }
     return await res.json();
   } catch (err) {
-    if (err.name === "AbortError") throw new Error("API_TIMEOUT");
+    const abortado = err.name === "AbortError";
+    const red = err instanceof TypeError;   // fetch falla asi cuando no hay red
+
+    if ((abortado || red) && !esReintento) {
+      if (typeof opts.onReintento === "function") opts.onReintento();
+      await new Promise((resolver) => setTimeout(resolver, ESPERA_REINTENTO_MS));
+      return realPredict(file, opts, true);
+    }
+
+    if (abortado) throw new Error("API_TIMEOUT");
     throw err;
   } finally {
     clearTimeout(timer);

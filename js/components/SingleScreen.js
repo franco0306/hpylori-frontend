@@ -10,6 +10,40 @@ const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
 
+// Desde aqui se explica la espera. Cuatro segundos es mas de lo que tarda una
+// inferencia normal (~1 s) y menos de lo que la gente aguanta sin explicacion.
+const TIEMPO_AVISO_ESPERA_MS = 4000;
+
+/**
+ * Traduce el fallo de una inferencia en su causa real.
+ *
+ * El mensaje anterior era siempre "tiempo de espera agotado", tambien cuando el
+ * servidor habia rechazado el formato o devuelto un 500. Un aviso que miente
+ * sobre la causa hace perder mas tiempo del que ahorra.
+ */
+function describirFalloPredict(err) {
+  const estado = err && err.estado;
+
+  if (err && err.message === "API_TIMEOUT") {
+    return "El servidor no respondió a tiempo. Si es el primer análisis tras un " +
+           "rato de inactividad, el motor tarda en arrancar: inténtelo otra vez.";
+  }
+  if (err && err.message === "INVALID_FILE") {
+    return "No se pudo leer la imagen seleccionada. Pruebe con otro archivo.";
+  }
+  if (estado === 413) return "La imagen supera el máximo de 10 MB.";
+  if (estado === 415) return "Formato no soportado. Use una imagen JPG o PNG.";
+  if (estado === 429) {
+    return "Demasiadas solicitudes seguidas. Espere unos segundos y reintente.";
+  }
+  if (estado >= 500) {
+    return "El servidor de análisis respondió con un error (HTTP " + estado + "). " +
+           "Inténtelo de nuevo en unos momentos.";
+  }
+  return "No se pudo contactar con el servidor de análisis. Compruebe su conexión.";
+}
+
+
 export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [file,        setFile]        = useState(null);
   const [drag,        setDrag]        = useState(false);
@@ -21,6 +55,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   // El guardado en el historial no puede fallar en silencio: el médico tiene
   // que saber que ese análisis no quedó registrado.
   const [historialFallo, setHistorialFallo] = useState(null);   // { estado, detalle }
+  // El motor vive en un contenedor que se duerme; la primera peticion tras un
+  // rato de inactividad tarda. Pasados unos segundos se explica, en vez de
+  // dejar una barra avanzando sin decir por que.
+  const [esperaLarga, setEsperaLarga] = useState(false);
+  const [reintentando, setReintentando] = useState(false);
   const inputRef = useRef(null);
 
   const accept = (f) => {
@@ -44,6 +83,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
 
   const analyze = async (opts = {}) => {
     setPhase("loading"); setProgress(0); setError(null); setResult(null);
+    setEsperaLarga(false); setReintentando(false);
+    const avisoLento = setTimeout(() => setEsperaLarga(true), TIEMPO_AVISO_ESPERA_MS);
     const t0 = Date.now();
     const targetMs = model.metrics.latency_ms;
     const iv = setInterval(() => {
@@ -55,8 +96,13 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       // Si hay un File real lo enviamos; si es muestra, mandamos el objeto con `src`.
       const payload = file._raw || file;
       // Sin `modelId`: la capa de API fija ResNet50 para toda la interfaz clínica.
-      const res = await predict(payload, { positive, heat, threshold, forceError: opts.forceError });
-      clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
+      const res = await predict(payload, {
+        positive, heat, threshold, forceError: opts.forceError,
+        onReintento: () => setReintentando(true),
+      });
+      clearInterval(iv); clearTimeout(avisoLento);
+      setEsperaLarga(false); setReintentando(false);
+      setProgress(100); setResult(res); setPhase("done");
       // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
       // persiste metadatos, así que esta es la única copia mientras dure la sesión.
       setHistorialFallo(null);
@@ -79,8 +125,12 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           detalle: (err && err.detalle) || null,
         }));
     } catch (e) {
-      clearInterval(iv); setPhase("error");
-      setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
+      clearInterval(iv); clearTimeout(avisoLento);
+      setEsperaLarga(false); setReintentando(false);
+      setPhase("error");
+      // Antes cualquier fallo se anunciaba como "tiempo de espera agotado",
+      // incluido un 415 o un 500: el mensaje ocultaba la causa real.
+      setError({ k: "api", m: describirFalloPredict(e) });
     }
   };
 
@@ -431,7 +481,15 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           ),
           phase === "loading" && h("div", { style: { textAlign: "center", padding: "20px 0" } },
             h("div", { className: "spinner" }),
-            h("div", { style: { fontWeight: 600 } }, "Analizando imagen endoscópica…"),
+            h("div", { style: { fontWeight: 600 } },
+              reintentando ? "Reintentando el análisis…" : "Analizando imagen endoscópica…"),
+            (esperaLarga || reintentando) && h("div", {
+              style: { fontSize: 12.5, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 },
+              role: "status",
+            },
+              "Iniciando el motor de inferencia en la nube y generando el mapa ",
+              "Grad-CAM. La primera petición tras un rato de inactividad puede ",
+              "tardar cerca de un minuto."),
             h("div", { className: "muted", style: { fontSize: 12.5, marginTop: 4 } },
               "Procesando mucosa y generando mapa de zonas relevantes"),
             h("div", { className: "progress", style: { marginTop: 16 } },

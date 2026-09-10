@@ -78,6 +78,10 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
             src,
             loading: "lazy",
             alt: "",
+            // La subida al almacén ocurre después de responder: si aquel objeto
+            // nunca llegó a existir, la miniatura se apaga en vez de dejar el
+            // icono roto del navegador.
+            onError: (e) => { e.target.style.display = "none"; },
           }),
           // Distintivo de que el estudio conserva su mapa de calor.
           (s.gradcam_url || (media && media.heatmap_b64)) &&
@@ -214,13 +218,20 @@ function ModalComparativo({ estudio, onCerrar }) {
   const original = estudio.image_url || (media && media.src) || null;
   const gradcam = estudio.gradcam_url || (media && media.heatmap_b64) || null;
 
-  const panel = (titulo, src, alt, vacio) => h("div", { className: "comparativa-panel" },
+  const [rotas, setRotas] = React.useState({});
+
+  const panel = (clave, titulo, src, alt, vacio) => h("div", { className: "comparativa-panel" },
     h("div", { className: "comparativa-titulo" }, titulo),
-    src
-      ? h("img", { className: "comparativa-img", src, alt, loading: "lazy" })
+    src && !rotas[clave]
+      ? h("img", {
+          className: "comparativa-img", src, alt, loading: "lazy",
+          // Una URL archivada puede no resolver si su subida diferida falló.
+          // Se cae al estado vacío, que dice la verdad.
+          onError: () => setRotas((previas) => ({ ...previas, [clave]: true })),
+        })
       : h("div", { className: "comparativa-vacio" },
           h(I.scan, { size: 26, "aria-hidden": true }),
-          h("span", null, vacio)),
+          h("span", null, rotas[clave] ? "Imagen no disponible" : vacio)),
   );
 
   return h("div", { className: "modal-backdrop", onClick: onCerrar },
@@ -251,10 +262,10 @@ function ModalComparativo({ estudio, onCerrar }) {
 
       h("div", { className: "modal-body" },
         h("div", { className: "comparativa-grid" },
-          panel("Imagen endoscópica", original,
+          panel("original", "Imagen endoscópica", original,
                 "Imagen endoscópica del estudio",
                 "Imagen no archivada"),
-          panel("Mapa Grad-CAM", gradcam,
+          panel("gradcam", "Mapa Grad-CAM", gradcam,
                 "Mapa de activación Grad-CAM del estudio",
                 "Mapa no archivado"),
         ),

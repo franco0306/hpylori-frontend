@@ -19,7 +19,9 @@ const React = window.React;
 const { useState, useEffect, useCallback, useRef } = React;
 const h = React.createElement;
 
-const CUOTA_BYTES = 500 * 1024 * 1024;      // plan de referencia de Supabase
+// Solo respaldo si el servidor no informa su límite; el valor real llega en
+// `limite_mb` y sale de SUPABASE_STORAGE_LIMIT_MB en el backend.
+const CUOTA_MB = 500;
 
 // Latencia por encima de la cual el análisis deja de sentirse inmediato en
 // consulta. Es un objetivo de servicio, no el umbral de decisión clínica.
@@ -102,6 +104,35 @@ async function pedirJson(ruta, signal) {
     throw fallo;
   }
   return res.json();
+}
+
+// Semáforo de capacidad. El texto viene del estado que calcula el servidor: si
+// la interfaz recalculara los umbrales por su cuenta, ambos podrían discrepar.
+const SEMAFORO = {
+  // En estado óptimo no se usa `clase`: se pinta como píldora, no como alerta.
+  optimo: {
+    icono: "check",
+    texto: "Infraestructura en rango óptimo de operación.",
+  },
+  alerta: {
+    clase: "alert-warn",
+    icono: "alert",
+    texto: "Capacidad al 70 %. Se recomienda planificar el escalamiento de la " +
+           "cuota en Supabase antes de que afecte al registro de estudios.",
+  },
+  critico: {
+    clase: "alert-error",
+    icono: "alert",
+    texto: "Capacidad superior al 85 %. Riesgo inminente de saturación: ejecute " +
+           "la purga de registros o amplíe la infraestructura.",
+  },
+};
+
+/** Porcentaje de cuota con precisión suficiente para que un 0.03 % no sea 0 %. */
+function fmtPct(pct) {
+  if (!Number.isFinite(pct)) return "—";
+  if (pct > 0 && pct < 0.01) return "< 0.01";
+  return pct.toFixed(2);
 }
 
 function fmtBytes(bytes) {
@@ -187,7 +218,7 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
 
     h(KpiCard, {
       label: "Estudios clínicos",
-      value: cargando ? "…" : almacenamiento ? almacenamiento.estudios : "—",
+      value: cargando ? "…" : almacenamiento ? almacenamiento.estudios_totales : "—",
       sub: "Registros procesados",
       barColor: "var(--ink-700)",
       valueColor: "var(--ink-900)",
@@ -225,11 +256,14 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
 // ── Módulo: auditoría de base de datos y almacenamiento ──────────────────────
 function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
                                    purgando, purgaResultado, onPurgar }) {
-  const bytes = datos ? datos.bytes_usados : 0;
-  const cuota = (datos && datos.bytes_cuota) || CUOTA_BYTES;
-  const consumo = Math.min(100, (bytes / cuota) * 100);
-  const consumoTexto = consumo < 0.01 && bytes > 0 ? "< 0.01" : consumo.toFixed(2);
+  const bytes = datos ? datos.bytes_ocupados : 0;
+  const limiteMb = (datos && datos.limite_mb) || CUOTA_MB;
+  const pct = datos ? datos.cuota_consumida_pct : 0;
+  const consumoTexto = fmtPct(pct);
+  // La barra se recorta al 100 %; el número puede pasarse, y debe verse que lo hace.
+  const anchoBarra = Math.min(100, Math.max(0.6, pct || 0));
   const estimado = Boolean(datos && datos.estimado);
+  const semaforo = SEMAFORO[datos && datos.estado_infraestructura] || null;
 
   // Sin datos no se pinta un cero: un cero se lee como "no hay nada guardado",
   // que es una afirmación distinta de "no se pudo consultar".
@@ -257,7 +291,7 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
     h("div", { className: "admin-metrics" },
       h("div", { className: "admin-metric" },
         h("div", { className: "admin-metric-label" }, "Estudios registrados"),
-        h("div", { className: "admin-metric-value" }, valor(datos && datos.estudios)),
+        h("div", { className: "admin-metric-value" }, valor(datos && datos.estudios_totales)),
         h("div", { className: "admin-metric-hint" }, "Filas en la tabla de estudios"),
       ),
       h("div", { className: "admin-metric" },
@@ -269,7 +303,7 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
       h("div", { className: "admin-metric" },
         h("div", { className: "admin-metric-label" }, "Cuota consumida"),
         h("div", { className: "admin-metric-value" }, valor(consumoTexto + " %")),
-        h("div", { className: "admin-metric-hint" }, "Sobre " + fmtBytes(cuota) + " del plan"),
+        h("div", { className: "admin-metric-hint" }, "Sobre " + limiteMb + " MB contratados"),
       ),
     ),
 
@@ -278,7 +312,32 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
       role: "img",
       "aria-label": "Cuota consumida: " + consumoTexto + " por ciento",
     },
-      h("div", { className: "admin-quota-fill", style: { width: Math.max(0.6, consumo) + "%" } }),
+      h("div", {
+        className: "admin-quota-fill quota-" + ((datos && datos.estado_infraestructura) || "optimo"),
+        style: { width: anchoBarra + "%" },
+      }),
+    ),
+
+    // Banner de capacidad. En estado óptimo basta una píldora discreta: un
+    // aviso a pantalla completa para decir que todo va bien acaba ignorándose,
+    // y con él se ignorarían los dos que sí importan.
+    semaforo && !cargando && (
+      datos.estado_infraestructura === "optimo"
+        ? h("div", { className: "pill-estado", style: { marginTop: 16 } },
+            h("span", { className: "dot", "aria-hidden": true }),
+            semaforo.texto)
+        : h("div", {
+            className: "alert " + semaforo.clase,
+            style: { marginTop: 16 },
+            role: "status",
+          },
+            h(I[semaforo.icono], { size: 14 }),
+            h("div", { style: { fontSize: 12.5, lineHeight: 1.5 } },
+              h("strong", null, datos.estado_infraestructura === "critico"
+                ? "Saturación inminente. " : "Capacidad en aviso. "),
+              semaforo.texto,
+            ),
+          )
     ),
 
     // El aviso aparece solo cuando las cifras son de verdad estimadas: en
@@ -823,7 +882,8 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
         h("th", null, "Rol"),
         h("th", null, "Última conexión"),
         h("th", null, "Estado"),
-        h("th", null, "Acciones"),
+        h("th", null, "Almacenamiento"),
+        h("th", { className: "col-acciones" }, "Acciones"),
       )),
       h("tbody", null,
         usuarios.map((u) => {
@@ -886,7 +946,29 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                 }),
                 u.activo === false ? "Inactivo" : "Activo")),
 
+            // Cuota de la cuenta sobre el historial completo. Es un reparto
+            // proporcional al número de estudios, no una medida por fila.
             h("td", null,
+              u.estudios
+                ? h("div", { className: "cuota-celda" },
+                    h("div", {
+                      className: "bar-mini",
+                      role: "img",
+                      "aria-label": "Ocupa el " + (u.pct_almacenamiento || 0) +
+                                    " por ciento del historial",
+                    },
+                      h("div", {
+                        className: "bar-mini-fill",
+                        style: { width: Math.min(100, Math.max(2, u.pct_almacenamiento || 0)) + "%" },
+                      }),
+                    ),
+                    h("span", { className: "cuota-texto" },
+                      (u.pct_almacenamiento || 0) + "% (" + u.estudios +
+                      (u.kb_estimados ? " / ~" + u.kb_estimados + " KB" : "") + ")"),
+                  )
+                : h("span", { className: "muted", style: { fontSize: 12 } }, "0% (0)")),
+
+            h("td", { className: "col-acciones" },
               h(MenuAcciones, {
                 fila: u,
                 abierto: menuAbierto === u.id,

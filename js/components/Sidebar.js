@@ -13,7 +13,7 @@ function initials(user) {
 
 // Navegación clínica. Las rutas técnicas (catálogo de modelos y comparativa de
 // arquitecturas) quedan fuera del menú: el gastroenterólogo no elige modelo.
-export function Sidebar({ current, onNavigate, user, onLogout }) {
+export function Sidebar({ current, onNavigate, user, onLogout, abierto = false }) {
   const role = getRole(user);
 
   // Accesos de administración técnica. Se suman a los clínicos: un
@@ -40,7 +40,13 @@ export function Sidebar({ current, onNavigate, user, onLogout }) {
     onNavigate(id);
   };
 
-  return h("aside", { className: "sidebar" },
+  return h("aside", {
+    id: "menu-lateral",
+    className: "sidebar" + (abierto ? " abierto" : ""),
+    // En escritorio el menú es parte del armazón y siempre está presente; el
+    // atributo solo describe el cajón cuando de verdad se comporta como tal.
+    "aria-hidden": undefined,
+  },
     h("div", { className: "brand" },
       h("div", { className: "brand-mark" }, "Hp"),
       h("div", null,

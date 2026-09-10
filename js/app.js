@@ -24,7 +24,7 @@ import { isAuthenticated, getUser, logout, authFetch } from "./auth.js";
 
 const React    = window.React;
 const ReactDOM = window.ReactDOM;
-const { useState, useEffect } = React;
+const { useState, useEffect, useCallback } = React;
 const h = React.createElement;
 
 // El modelo es una constante del sistema, no una preferencia del usuario:
@@ -46,7 +46,30 @@ function App() {
   const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
   const [heatmapResult, setHeatmapResult] = useState(null);
   const [screen, setScreen]               = useState("single");
+  // Menú lateral en pantalla estrecha. En escritorio está siempre visible; por
+  // debajo de 900 px se convierte en un cajón que entra desde la izquierda.
+  // Va aquí y no más abajo: los hooks no pueden declararse después del `return`
+  // temprano de la pantalla de acceso, o cambiarían de orden al iniciar sesión.
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const model = CLINICAL_MODEL;
+
+  const alternarMenu = useCallback(() => setMenuAbierto((v) => !v), []);
+  const cerrarMenu = useCallback(() => setMenuAbierto(false), []);
+
+  // Navegar cierra el cajón: dejarlo abierto taparía la pantalla recién elegida.
+  const handleNavegar = useCallback((destino) => {
+    setScreen(destino);
+    setMenuAbierto(false);
+  }, []);
+
+  useEffect(() => {
+    if (!menuAbierto) return undefined;
+    const handleTecla = (e) => {
+      if (e.key === "Escape") cerrarMenu();
+    };
+    document.addEventListener("keydown", handleTecla);
+    return () => document.removeEventListener("keydown", handleTecla);
+  }, [menuAbierto, cerrarMenu]);
 
   // Accesibilidad (WCAG 2.1): aplica y persiste el tema en cada cambio.
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -193,10 +216,26 @@ function App() {
     }
   };
 
-  return h("div", { className: "app" },
-    h(Sidebar, { current: screen, onNavigate: setScreen, user, onLogout: handleLogout }),
+  return h("div", { className: "app" + (menuAbierto ? " menu-abierto" : "") },
+    h(Sidebar, {
+      current: screen,
+      onNavigate: handleNavegar,
+      user,
+      onLogout: handleLogout,
+      abierto: menuAbierto,
+    }),
+    // Fondo oscuro del cajón. Solo existe mientras está abierto, y en escritorio
+    // el CSS lo mantiene oculto porque el menú nunca se superpone.
+    menuAbierto && h("div", {
+      className: "menu-backdrop",
+      onClick: cerrarMenu,
+      "aria-hidden": true,
+    }),
     h("div", { className: "main" },
-      h(Topbar, { crumbs, user, theme, onToggleTheme: toggleTheme }),
+      h(Topbar, {
+        crumbs, user, theme, onToggleTheme: toggleTheme,
+        menuAbierto, onToggleMenu: alternarMenu,
+      }),
       h("div", { "data-screen-label": screen, className: "screen" }, render()),
       h(Disclaimer, { onOpenLegal: handleOpenLegal }),
     ),

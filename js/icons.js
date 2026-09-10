@@ -81,6 +81,7 @@ export const I = {
     h("rect", { key: 1, x: 3, y: 11, width: 18, height: 11, rx: 2 }),
     h("path", { key: 2, d: "M7 11V7a5 5 0 0 1 10 0v4" }),
   ]}),
+  menu: (p) => h(Ico, { ...p, d: "M3 6h18M3 12h18M3 18h18" }),
   // Kebab de acciones: tres puntos verticales.
   dots: (p) => h(Ico, { ...p, kids: [
     h("circle", { key: 1, cx: 12, cy: 5,  r: 1.4, fill: "currentColor" }),

@@ -97,6 +97,18 @@ button { font-family: inherit; cursor: pointer; }
 .user-role { font-size: 11px; color: var(--ink-500); }
 
 .main { display: flex; flex-direction: column; min-height: 100vh; min-width: 0; }
+
+/* Hamburguesa y fondo del cajón: solo existen por debajo de 900 px, donde el
+   menú deja de estar fijo en el armazón. En escritorio no se pintan.        */
+.menu-toggle {
+  display: none; width: 34px; height: 34px; padding: 0; flex-shrink: 0;
+  place-items: center; border-radius: 8px;
+  border: 1px solid var(--ink-200); background: var(--white); color: var(--ink-700);
+  transition: background 120ms ease;
+}
+.menu-toggle:hover { background: var(--ink-100); }
+.menu-toggle:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+.menu-backdrop { display: none; }
 .topbar { height: 56px; background: var(--white); border-bottom: 1px solid var(--ink-200); display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 5; }
 .crumbs { font-size: 12.5px; color: var(--ink-500); display: flex; align-items: center; gap: 6px; }
 .crumbs strong { color: var(--ink-900); font-weight: 600; }
@@ -687,38 +699,31 @@ button { font-family: inherit; cursor: pointer; }
      página entera en lugar de desplazarse dentro de su propia barra.        */
   .app { grid-template-columns: minmax(0, 1fr); }
 
-  /* La marca y el perfil comparten fila, y los accesos ocupan la siguiente.
-     Apilados eran tres bandas de cromo antes de llegar al contenido, y en una
-     pantalla de 844 px de alto eso se come el titulo de la pantalla.        */
+  /* El menú sale del flujo y se convierte en un cajón que entra desde la
+     izquierda. Antes ocupaba dos bandas fijas encima del contenido: en una
+     pantalla de 844 px de alto, eso se comía el título de la pantalla.
+     Como panel deslizante conserva las secciones y el perfil completos, que
+     en una tira horizontal no cabían.                                       */
+  .menu-toggle { display: grid; }
+
   .sidebar {
-    position: static; height: auto; width: 100%; min-width: 0;
-    flex-direction: row; flex-wrap: wrap; align-items: center;
-    border-right: 0; border-bottom: 1px solid var(--ink-200);
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 40;
+    width: 268px; max-width: 84vw; height: 100dvh; min-width: 0;
+    flex-direction: column; overflow-y: auto;
+    border-right: 1px solid var(--ink-200); border-bottom: 0;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
   }
-  .brand { flex: 1; min-width: 0; padding: 10px 14px; border-bottom: 0; }
-  .brand-sub { display: none; }
+  .sidebar.abierto { transform: translateX(0); box-shadow: 0 0 44px rgba(0,0,0,.32); }
 
-  .sidebar-footer {
-    order: 2; width: auto; margin-top: 0;
-    padding: 8px 12px; border-top: 0; gap: 8px;
+  .menu-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 35;
+    background: rgba(8, 13, 26, .5);
   }
-  /* "Administrador · franco@clinica.pe" es la línea que hinchaba la banda: el
-     rol ya se ve en el menú y el correo no se necesita para navegar.        */
-  .sidebar-footer .user-role { display: none; }
-  .sidebar-footer .user-name { max-width: 120px; overflow: hidden;
-                               text-overflow: ellipsis; white-space: nowrap; }
 
-  .nav {
-    order: 3; flex-basis: 100%;
-    display: flex; flex-direction: row; gap: 4px; min-width: 0;
-    overflow-x: auto; padding: 0 10px 8px;
-    -webkit-overflow-scrolling: touch;
-    border-top: 1px solid var(--ink-100);
-  }
-  /* Los rótulos de sección ("DIAGNÓSTICO", "REGISTROS") ocupan un ancho que
-     en horizontal no aporta nada.                                           */
-  .nav-section { display: none; }
-  .nav-item { white-space: nowrap; flex-shrink: 0; }
+  /* El cajón se cierra al elegir destino, así que no hace falta recortar nada:
+     caben los rótulos de sección y el perfil con su correo.                 */
+  .nav-item { white-space: nowrap; }
 
   /* Mas baja y sin el usuario: el avatar y el nombre ya salen en la banda
      de perfil de arriba, y repetirlos solo gastaba altura util.             */
@@ -794,6 +799,4 @@ button { font-family: inherit; cursor: pointer; }
 
   /* A este ancho el rótulo del botón de tema sobra: el icono ya lo dice. */
   .theme-toggle span { display: none; }
-  .crumbs { display: none; }
-  .brand-name { font-size: 13px; }
 }

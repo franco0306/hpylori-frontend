@@ -33,13 +33,24 @@ function initials(user) {
 
 // Topbar clínico: sin selector de arquitectura ni acceso a comparativas.
 // Solo contexto de navegación, estado del servicio, accesibilidad y usuario.
-export function Topbar({ crumbs, user, theme, onToggleTheme }) {
+export function Topbar({ crumbs, user, theme, onToggleTheme, menuAbierto, onToggleMenu }) {
   const dark = theme === THEMES.DARK;
   const [status, handleCheckService] = useServiceStatus();
 
   const info = STATUS_TEXT[status];
 
   return h("div", { className: "topbar" },
+    // Solo visible en pantalla estrecha: en escritorio el menú ya está fijo.
+    h("button", {
+      type: "button",
+      className: "menu-toggle",
+      onClick: onToggleMenu,
+      "aria-label": menuAbierto ? "Cerrar el menú de navegación"
+                                : "Abrir el menú de navegación",
+      "aria-expanded": menuAbierto ? "true" : "false",
+      "aria-controls": "menu-lateral",
+    }, h(menuAbierto ? I.x : I.menu, { size: 18 })),
+
     h("div", { className: "crumbs" },
       ...crumbs.flatMap((c, i) => [
         i > 0 && h(I.chev, { key: "c" + i, size: 12 }),

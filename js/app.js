@@ -3,7 +3,7 @@
 import { findModel }           from "./models.js";
 import { CLINICAL_MODEL_ID }   from "./api.js";
 import { Sidebar }             from "./components/Sidebar.js";
-import { Topbar, Disclaimer }  from "./components/Topbar.js";
+import { Topbar }              from "./components/Topbar.js";
 import { Dashboard }           from "./components/Dashboard.js";
 import { SingleScreen }        from "./components/SingleScreen.js";
 import { HeatmapScreen }       from "./components/HeatmapScreen.js";
@@ -222,6 +222,7 @@ function App() {
       onNavigate: handleNavegar,
       user,
       onLogout: handleLogout,
+      onOpenLegal: handleOpenLegal,
       abierto: menuAbierto,
     }),
     // Fondo oscuro del cajón. Solo existe mientras está abierto, y en escritorio
@@ -237,7 +238,6 @@ function App() {
         menuAbierto, onToggleMenu: alternarMenu,
       }),
       h("div", { "data-screen-label": screen, className: "screen" }, render()),
-      h(Disclaimer, { onOpenLegal: handleOpenLegal }),
     ),
     h(LegalModal, {
       open: legalOpen,

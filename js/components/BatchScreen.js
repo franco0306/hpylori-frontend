@@ -221,7 +221,10 @@ export function BatchScreen({ model, threshold }) {
           h("h3", { className: "card-title" }, "Serie seleccionada"),
           h("div", { className: "card-sub" },
             total + " imagen" + (total === 1 ? "" : "es") + " en la serie" +
-            (running ? " · procesando…" : queued ? " · " + queued + " en cola" : " · serie completada")),
+            (running ? " · procesando…" : queued ? " · " + queued + " en cola" : " · serie completada") +
+            // Al retirar la banda legal fija, la advertencia vive donde de
+            // verdad importa: junto a los resultados que se van a interpretar.
+            " · resultados sugeridos por IA, requieren validación clínica"),
         ),
         h("span", { className: "badge badge-neutral" }, done + "/" + total),
       ),

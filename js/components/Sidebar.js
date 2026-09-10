@@ -13,7 +13,8 @@ function initials(user) {
 
 // Navegación clínica. Las rutas técnicas (catálogo de modelos y comparativa de
 // arquitecturas) quedan fuera del menú: el gastroenterólogo no elige modelo.
-export function Sidebar({ current, onNavigate, user, onLogout, abierto = false }) {
+export function Sidebar({ current, onNavigate, user, onLogout, onOpenLegal,
+                         abierto = false }) {
   const role = getRole(user);
 
   // Accesos de administración técnica. Se suman a los clínicos: un
@@ -82,6 +83,19 @@ export function Sidebar({ current, onNavigate, user, onLogout, abierto = false }
       ),
       h("button", { className: "btn btn-ghost btn-icon", title: "Cerrar sesión", onClick: onLogout, style: { flexShrink: 0, color: "var(--ink-400)" } },
         h(I.logout, { size: 16 })),
+    ),
+
+    // El acuerdo se acepta una sola vez, en el primer acceso de cada cuenta
+    // (LegalModal). Este enlace es la vía para releerlo cuando haga falta, en
+    // lugar de una banda fija ocupando pantalla en todo momento.
+    onOpenLegal && h("button", {
+      type: "button",
+      className: "legal-link",
+      onClick: onOpenLegal,
+      "aria-label": "Abrir el aviso legal, los términos del servicio y la privacidad de datos médicos",
+    },
+      h(I.info, { size: 12, "aria-hidden": true }),
+      "Aviso legal y privacidad",
     ),
   );
 }

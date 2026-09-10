@@ -29,7 +29,6 @@
 :root[data-theme="dark"] .alert-error { color: #FECACA; }
 :root[data-theme="dark"] .alert-warn  { color: #FDE68A; border-color: #4A3A12; }
 :root[data-theme="dark"] .alert-info  { color: #DBEAFE; }
-:root[data-theme="dark"] .disclaimer  { color: #FDE68A; }
 :root[data-theme="dark"] .avatar,
 :root[data-theme="dark"] .brand-mark { color: #fff; }
 :root[data-theme="dark"] .btn-primary { color: #0B1120; }
@@ -138,7 +137,9 @@ button { font-family: inherit; cursor: pointer; }
 .switch.on .switch-knob { transform: translateX(20px); }
 /* El padding inferior reserva la altura del aviso legal fijo para que ningún
    contenido quede permanentemente oculto tras él al llegar al final del scroll. */
-.content { padding: 28px 32px 64px; flex: 1; min-width: 0; }
+/* El relleno inferior era de 64 px para no quedar bajo la banda legal fija.
+   Sin ella, basta el respiro normal.                                        */
+.content { padding: 28px 32px 36px; flex: 1; min-width: 0; }
 /* Misma razon que en `.app`: las tarjetas son casi siempre hijas de una rejilla
    y sin esto imponen su ancho de contenido al resto del layout.              */
 .card, .kpi { min-width: 0; }
@@ -149,7 +150,17 @@ button { font-family: inherit; cursor: pointer; }
    al pie incluso en pantallas cortas; en pantallas largas queda fijo (sticky). */
 .screen { flex: 1; display: flex; flex-direction: column; }
 .screen > * { flex: 1; }
-.disclaimer { position: sticky; bottom: 0; z-index: 6; border-top: 1px solid var(--ink-200); background: var(--amber-50); padding: 10px 32px; font-size: 12px; color: #78350F; display: flex; align-items: center; gap: 10px; }
+/* Acceso al aviso legal desde el pie del menú. Sustituye a la banda fija
+   `.disclaimer`, que ocupaba una franja permanente en todas las pantallas: el
+   acuerdo se acepta una vez en el primer acceso y desde aquí se relee.      */
+.legal-link {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 9px 16px; border: 0; border-top: 1px solid var(--ink-100);
+  background: transparent; color: var(--ink-500);
+  font-size: 11.5px; font-weight: 500; text-align: left;
+}
+.legal-link:hover { color: var(--ink-700); background: var(--ink-50); }
+.legal-link:focus-visible { outline: 2px solid var(--blue-700); outline-offset: -2px; }
 
 /* Cards */
 .card { background: var(--white); border: 1px solid var(--ink-200); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
@@ -375,9 +386,6 @@ button { font-family: inherit; cursor: pointer; }
 .legal-accept input:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
 
 /* Enlace al acuerdo desde el pie */
-.disclaimer-link { margin-left: auto; flex-shrink: 0; background: transparent; border: 0; padding: 2px 4px; border-radius: 4px; font-size: 12px; font-weight: 600; color: inherit; text-decoration: underline; }
-.disclaimer-link:hover { opacity: .78; }
-.disclaimer-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 /* Panel de administración */
 .admin-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -684,10 +692,9 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Tabletas y portátiles estrechos ─────────────────────────────────────── */
 @media (max-width: 1180px) {
   .app { grid-template-columns: 200px 1fr; }
-  .content { padding: 22px 20px 64px; }
+  .content { padding: 22px 20px 32px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .engine-metrics { grid-template-columns: repeat(2, 1fr); }
-  .disclaimer { padding: 10px 20px; }
 }
 
 /* ── Móviles y tabletas en vertical ──────────────────────────────────────── */
@@ -737,7 +744,7 @@ button { font-family: inherit; cursor: pointer; }
   .theme-toggle { white-space: nowrap; flex-shrink: 0; }
   .topbar-user-name { max-width: 96px; }
 
-  .content { padding: 18px 14px 72px; }
+  .content { padding: 18px 14px 28px; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
 
   /* `.row` es una fila flexible sin envoltura. En la pantalla Grad-CAM medía
@@ -767,8 +774,6 @@ button { font-family: inherit; cursor: pointer; }
   /* La burbuja de ayuda se centra bajo el icono y nunca se sale. */
   .kpi-tooltip-bubble { width: min(290px, calc(100vw - 32px)); right: -10px; }
 
-  .disclaimer { padding: 10px 14px; align-items: flex-start; flex-wrap: wrap; }
-  .disclaimer-link { margin-left: 0; }
 
   /* El panel decorativo del login no cabe y no aporta en móvil. */
   .auth-hero { display: none; }
@@ -776,7 +781,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Móviles estrechos ───────────────────────────────────────────────────── */
 @media (max-width: 560px) {
-  .content { padding: 14px 10px 76px; }
+  .content { padding: 14px 10px 24px; }
   .card-pad { padding: 14px; }
   .page-title { font-size: 20px; }
   .kpi-value { font-size: 22px; }

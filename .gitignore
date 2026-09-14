@@ -1,0 +1,14 @@
+# Bytecode de Python (suite E2E)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Dependencias
+node_modules/
+
+# Entorno
+.env
+
+# Artefactos descargados por la suite E2E (se regeneran en cada corrida)
+tests/e2e_results/downloads/

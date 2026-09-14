@@ -3,7 +3,7 @@
 // Contrato JSON esperado del endpoint POST {API_BASE_URL}{PREDICT_PATH}:
 // Request: multipart/form-data
 //   - file:      la imagen endoscópica (JPG/PNG)
-//   - model_id:  string, p.ej. "resnet50"
+//   - model_id:  siempre "resnet50" (ver CLINICAL_MODEL_ID)
 // Response (200 OK): JSON
 //   {
 //     "clase":         "Positivo" | "Negativo",
@@ -16,7 +16,16 @@
 //   }
 
 import { CONFIG } from "./config.js";
+import { getToken } from "./auth.js";
 import { findModel } from "./models.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modelo clínico único. La UI del gastroenterólogo NO expone la arquitectura
+// de red ni permite cambiarla: toda inferencia se ejecuta con ResNet50, que es
+// el modelo con mayor AUC (0.9524) del benchmarking. El backend sigue
+// soportando el resto de arquitecturas para uso experimental / investigación.
+// ─────────────────────────────────────────────────────────────────────────────
+export const CLINICAL_MODEL_ID = "resnet50";
 
 /**
  * Predicción real contra el backend.
@@ -24,8 +33,15 @@ import { findModel } from "./models.js";
  * @param {{modelId?:string}} opts
  * @returns {Promise<object>}
  */
-async function realPredict(file, opts = {}) {
-  const modelId = opts.modelId || "resnet50";
+// Un arranque en frio del Space puede tardar cerca de un minuto: el
+// contenedor se reconstruye y ResNet50 se carga desde disco. Un unico
+// reintento cubre el caso sin castigar al usuario con esperas dobles cuando
+// el fallo es de verdad.
+const ESPERA_REINTENTO_MS = 2500;
+
+async function realPredict(file, opts = {}, esReintento = false) {
+  // Fijo, no negociable desde la interfaz clínica.
+  const modelId = CLINICAL_MODEL_ID;
   const fd = new FormData();
 
   // File real → envío directo. URL (http o data:) → fetch + Blob.
@@ -49,15 +65,34 @@ async function realPredict(file, opts = {}) {
   const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
 
   try {
+    // El token es lo que permite al servidor archivar la imagen y el mapa en
+    // Storage: sin él, la inferencia sale igual pero no se guarda nada.
+    const token = getToken();
     const res = await fetch(CONFIG.API_BASE_URL + CONFIG.PREDICT_PATH, {
       method: "POST",
       body: fd,
+      headers: token ? { Authorization: "Bearer " + token } : undefined,
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error("HTTP_" + res.status);
+    if (!res.ok) {
+      // Se adjunta el codigo para que la pantalla pueda decir QUE fallo en vez
+      // de culpar siempre al tiempo de espera.
+      const fallo = new Error("HTTP_" + res.status);
+      fallo.estado = res.status;
+      throw fallo;
+    }
     return await res.json();
   } catch (err) {
-    if (err.name === "AbortError") throw new Error("API_TIMEOUT");
+    const abortado = err.name === "AbortError";
+    const red = err instanceof TypeError;   // fetch falla asi cuando no hay red
+
+    if ((abortado || red) && !esReintento) {
+      if (typeof opts.onReintento === "function") opts.onReintento();
+      await new Promise((resolver) => setTimeout(resolver, ESPERA_REINTENTO_MS));
+      return realPredict(file, opts, true);
+    }
+
+    if (abortado) throw new Error("API_TIMEOUT");
     throw err;
   } finally {
     clearTimeout(timer);
@@ -68,7 +103,7 @@ async function realPredict(file, opts = {}) {
  * Predicción simulada (modo demo). Útil para desarrollo de UI.
  */
 async function mockPredict(file, opts = {}) {
-  const model = findModel(opts.modelId);
+  const model = findModel(CLINICAL_MODEL_ID);
   const baseLat = model.metrics.latency_ms;
   const ms = Math.round(baseLat * (0.85 + Math.random() * 0.3));
   await new Promise((r) => setTimeout(r, ms));

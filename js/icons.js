@@ -3,10 +3,13 @@
 const React = window.React;
 const h = React.createElement;
 
-const Ico = ({ d, size = 16, sw = 1.75, kids }) =>
+// `rest` reenvia className y atributos ARIA al <svg>; sin esto las reglas
+// como `.nav-icon` nunca llegaban al icono y se perdia el color de estado.
+const Ico = ({ d, size = 16, sw = 1.75, kids, ...rest }) =>
   h(
     "svg",
     {
+      ...rest,
       width: size,
       height: size,
       viewBox: "0 0 24 24",
@@ -77,6 +80,38 @@ export const I = {
   lock: (p) => h(Ico, { ...p, kids: [
     h("rect", { key: 1, x: 3, y: 11, width: 18, height: 11, rx: 2 }),
     h("path", { key: 2, d: "M7 11V7a5 5 0 0 1 10 0v4" }),
+  ]}),
+  menu: (p) => h(Ico, { ...p, d: "M3 6h18M3 12h18M3 18h18" }),
+  // Kebab de acciones: tres puntos verticales.
+  dots: (p) => h(Ico, { ...p, kids: [
+    h("circle", { key: 1, cx: 12, cy: 5,  r: 1.4, fill: "currentColor" }),
+    h("circle", { key: 2, cx: 12, cy: 12, r: 1.4, fill: "currentColor" }),
+    h("circle", { key: 3, cx: 12, cy: 19, r: 1.4, fill: "currentColor" }),
+  ]}),
+  edit: (p) => h(Ico, { ...p, kids: [
+    h("path", { key: 1, d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }),
+    h("path", { key: 2, d: "M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" }),
+  ]}),
+  // Acceso bloqueado: circulo tachado.
+  ban: (p) => h(Ico, { ...p, kids: [
+    h("circle", { key: 1, cx: 12, cy: 12, r: 9 }),
+    h("path",   { key: 2, d: "M5.6 5.6l12.8 12.8" }),
+  ]}),
+  copy: (p) => h(Ico, { ...p, kids: [
+    h("rect", { key: 1, x: 9, y: 9, width: 12, height: 12, rx: 2 }),
+    h("path", { key: 2, d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }),
+  ]}),
+  // Marco de captura endoscópica: placeholder cuando el estudio no conserva
+  // su imagen (el backend solo persiste metadatos).
+  scan:    (p) => h(Ico, { ...p, kids: [
+    h("path",    { key: 1, d: "M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16" }),
+    h("ellipse", { key: 2, cx: 12, cy: 12, rx: 4.2, ry: 3.4 }),
+    h("path",    { key: 3, d: "M10.4 11.2c.9-.7 2.3-.7 3.2 0" }),
+  ]}),
+  moon:    (p) => h(Ico, { ...p, d: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" }),
+  sun:     (p) => h(Ico, { ...p, kids: [
+    h("circle", { key: 1, cx: 12, cy: 12, r: 4 }),
+    h("path",   { key: 2, d: "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" }),
   ]}),
   book: (p) => h(Ico, { ...p, kids: [
     h("path", { key: 1, d: "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" }),

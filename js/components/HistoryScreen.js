@@ -1,4 +1,6 @@
 import { I } from "../icons.js";
+import { fmtLatencia } from "../format.js";
+import { getStudyMedia, hasStudyMedia } from "../sessionCache.js";
 import { getStudies, deleteStudy, clearHistory } from "../history.js";
 
 const React = window.React;
@@ -53,6 +55,7 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
   const isSel = selected && selected.id === s.id;
   return h("div", {
     key: s.id,
+    className: "history-row",
     onClick: () => onSelect(isSel ? null : s),
     style: {
       display: "flex", alignItems: "center", gap: 14,
@@ -62,10 +65,37 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
       cursor: "pointer", transition: "background 0.12s",
     },
   },
-    s.thumbnail
-      ? h("img", { src: s.thumbnail, style: { width: 68, height: 51, borderRadius: 6, objectFit: "cover", flexShrink: 0, border: "1px solid var(--ink-200)" }, alt: "" })
-      : h("div", { style: { width: 68, height: 51, borderRadius: 6, background: "var(--ink-100)", flexShrink: 0, display: "grid", placeItems: "center" } },
-          h(I.eye, { size: 16, style: { color: "var(--ink-400)" } })),
+    (function () {
+      // Orden de preferencia: el archivo permanente en Storage, y si no lo hay
+      // —estudios anteriores a esa función— lo que quede en la caché de sesión.
+      const media = getStudyMedia(s.id);
+      const src = s.image_url || (media && media.src) || null;
+
+      if (src) {
+        return h("div", { className: "study-thumb-wrapper" },
+          h("img", {
+            className: "study-thumb-img",
+            src,
+            loading: "lazy",
+            alt: "",
+            // La subida al almacén ocurre después de responder: si aquel objeto
+            // nunca llegó a existir, la miniatura se apaga en vez de dejar el
+            // icono roto del navegador.
+            onError: (e) => { e.target.style.display = "none"; },
+          }),
+          // Distintivo de que el estudio conserva su mapa de calor.
+          (s.gradcam_url || (media && media.heatmap_b64)) &&
+            h("span", { className: "cam-pill", title: "Conserva su mapa Grad-CAM" }, "CAM"),
+        );
+      }
+
+      return h("div", {
+        className: "study-thumb-wrapper study-thumb-empty",
+        role: "img",
+        "aria-label": "Estudio sin imagen archivada",
+        title: "Este estudio se registró antes de que se archivaran las imágenes",
+      }, h(I.scan, { size: 20, "aria-hidden": true }));
+    })(),
     h("div", { style: { flex: 1, minWidth: 0 } },
       h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 } },
         h("span", { style: { fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.fileName),
@@ -73,7 +103,7 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
           isPos ? "POSITIVO" : "NEGATIVO"),
       ),
       h("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 3 } },
-        h("span", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } }, s.modelo + " · " + s.latencia_ms + " ms"),
+        h("span", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } }, fmtLatencia(s.latencia_ms) + " ms"),
         h("span", { className: "mono", style: { fontSize: 12, fontWeight: 600, color: isPos ? "var(--red-600)" : "var(--green-600)" } }, fmtProb(s.prob)),
       ),
       h("div", { style: { fontSize: 11, color: "var(--ink-400)", marginTop: 2 } }, fmtDate(s.timestamp)),
@@ -145,14 +175,149 @@ function PatientCard({ name, studies, selected, onSelect, onDelete }) {
 }
 
 // ── HistoryScreen ─────────────────────────────────────────────────────────────
+// ── Modal de inspección comparativa ──────────────────────────────────────────
+// Original y mapa de calor lado a lado. Compararlos en la misma pantalla es lo
+// que permite juzgar si el modelo miró donde debía; alternando entre pestañas
+// se pierde justamente eso.
+const FOCUSABLE_HIST =
+  'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+
+function ModalComparativo({ estudio, onCerrar }) {
+  const dialogo = React.useRef(null);
+  const isPos = estudio.clase === "Positivo";
+
+  React.useEffect(() => {
+    const previo = document.activeElement;
+    const primero = dialogo.current && dialogo.current.querySelector(FOCUSABLE_HIST);
+    if (primero) primero.focus();
+
+    const handleTecla = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCerrar(); return; }
+      if (e.key !== "Tab" || !dialogo.current) return;
+
+      const items = Array.from(dialogo.current.querySelectorAll(FOCUSABLE_HIST));
+      if (!items.length) return;
+      const inicio = items[0], fin = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === inicio) {
+        e.preventDefault(); fin.focus();
+      } else if (!e.shiftKey && document.activeElement === fin) {
+        e.preventDefault(); inicio.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleTecla);
+    return () => {
+      document.removeEventListener("keydown", handleTecla);
+      if (previo && previo.focus) previo.focus();
+    };
+  }, [onCerrar]);
+
+  // El archivo permanente manda; la caché de sesión es el respaldo para los
+  // estudios anteriores a que existiera Storage.
+  const media = getStudyMedia(estudio.id);
+  const original = estudio.image_url || (media && media.src) || null;
+  const gradcam = estudio.gradcam_url || (media && media.heatmap_b64) || null;
+
+  const [rotas, setRotas] = React.useState({});
+
+  const panel = (clave, titulo, src, alt, vacio) => h("div", { className: "comparativa-panel" },
+    h("div", { className: "comparativa-titulo" }, titulo),
+    src && !rotas[clave]
+      ? h("img", {
+          className: "comparativa-img", src, alt, loading: "lazy",
+          // Una URL archivada puede no resolver si su subida diferida falló.
+          // Se cae al estado vacío, que dice la verdad.
+          onError: () => setRotas((previas) => ({ ...previas, [clave]: true })),
+        })
+      : h("div", { className: "comparativa-vacio" },
+          h(I.scan, { size: 26, "aria-hidden": true }),
+          h("span", null, rotas[clave] ? "Imagen no disponible" : vacio)),
+  );
+
+  return h("div", { className: "modal-backdrop", onClick: onCerrar },
+    h("div", {
+      className: "modal modal-comparativa",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "comparativa-titulo",
+      ref: dialogo,
+      // El clic en el fondo cierra; dentro del diálogo no debe propagarse.
+      onClick: (e) => e.stopPropagation(),
+    },
+      h("div", { className: "modal-head" },
+        h("div", { className: "modal-mark" }, h(I.heat, { size: 18 })),
+        h("div", null,
+          h("h2", { className: "modal-title", id: "comparativa-titulo" },
+            estudio.fileName || "Estudio"),
+          h("div", { className: "modal-sub" },
+            (estudio.paciente ? "Paciente " + estudio.paciente + " · " : "") +
+            fmtDate(estudio.timestamp)),
+        ),
+        h("button", {
+          className: "btn btn-ghost btn-icon",
+          onClick: onCerrar,
+          "aria-label": "Cerrar la inspección",
+        }, h(I.x, { size: 16 })),
+      ),
+
+      h("div", { className: "modal-body" },
+        h("div", { className: "comparativa-grid" },
+          panel("original", "Imagen endoscópica", original,
+                "Imagen endoscópica del estudio",
+                "Imagen no archivada"),
+          panel("gradcam", "Mapa Grad-CAM", gradcam,
+                "Mapa de activación Grad-CAM del estudio",
+                "Mapa no archivado"),
+        ),
+
+        h("div", { className: "metrics", style: { marginTop: 16 } },
+          h("div", { className: "metric" },
+            h("div", { className: "metric-label" }, "Diagnóstico"),
+            h("div", { className: "metric-value", style: {
+              color: isPos ? "var(--red-600)" : "var(--green-600)", fontSize: 17,
+            } }, isPos ? "Positivo" : "Negativo"),
+          ),
+          h("div", { className: "metric" },
+            h("div", { className: "metric-label" }, "Confianza"),
+            h("div", { className: "metric-value" }, fmtProb(estudio.prob)),
+          ),
+          h("div", { className: "metric" },
+            h("div", { className: "metric-label" }, "Latencia"),
+            h("div", { className: "metric-value" },
+              fmtLatencia(estudio.latencia_ms), h("small", null, " ms")),
+          ),
+        ),
+
+        h("div", { className: "alert alert-info", style: { marginTop: 14 } },
+          h(I.info, { size: 14 }),
+          h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
+            "El Grad-CAM muestra qué regiones activaron el modelo, no por qué. ",
+            "Resultado sugerido por IA: requiere validación clínica.",
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+
 export function HistoryScreen({ onViewHeatmap }) {
   const [studies,      setStudies]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
+  const [comparativa,  setComparativa]  = useState(null);   // estudio inspeccionado
+
+  // Un clic hace las dos cosas: resalta la fila y abre la inspección. Al cerrar
+  // el modal queda el panel lateral, que es de donde se salta al Grad-CAM.
+  const handleInspeccionar = useCallback((estudio) => {
+    setSelected(estudio);
+    if (estudio) setComparativa(estudio);
+  }, []);
   const [resultF,      setResultF]      = useState("Todos");
   const [dateF,        setDateF]        = useState(DATE_FILTERS[0]);
   const [viewMode,     setViewMode]     = useState("cronologico"); // "cronologico" | "paciente"
   const [confirmClear, setConfirmClear] = useState(false);
+  const [query,        setQuery]        = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -167,11 +332,35 @@ export function HistoryScreen({ onViewHeatmap }) {
   }, []);
 
   const handleDelete = async (id) => { await deleteStudy(id); refresh(); };
+
+  // Abre el Grad-CAM reutilizando la media retenida en esta sesión.
+  const handleOpenHeatmap = (study) => {
+    const media = getStudyMedia(study.id);
+    if (!media || !onViewHeatmap) return;   // early return: sin imagen no hay XAI
+    onViewHeatmap(
+      {
+        clase:       study.clase,
+        prob:        study.prob,
+        latencia_ms: study.latencia_ms,
+        heatmap_b64: media.heatmap_b64,
+        modelo:      study.modelo,
+        timestamp:   study.timestamp,
+      },
+      { src: media.src, name: media.name || study.fileName },
+    );
+  };
   const handleClear  = async () => { await clearHistory(); setStudies([]); setSelected(null); setConfirmClear(false); };
+
+  const handleSearch = (e) => setQuery(e.target.value);
 
   // Filtros comunes a ambas vistas
   const now = new Date();
+  const needle = query.trim().toLowerCase();
   const visible = studies.filter((s) => {
+    if (needle) {
+      const haystack = [s.id, s.fileName, s.paciente].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
     if (resultF !== "Todos" && s.clase !== resultF) return false;
     if (dateF.days !== Infinity) {
       const diff = (now - new Date(s.timestamp)) / 86400000;
@@ -191,7 +380,7 @@ export function HistoryScreen({ onViewHeatmap }) {
       h("div", null,
         h("h1", { className: "page-title" }, "Historial de estudios"),
         h("div", { className: "page-sub" },
-          "HU-004 · " + studies.length + " estudio" + (studies.length !== 1 ? "s" : "") + " almacenado" + (studies.length !== 1 ? "s" : ""),
+          "" + studies.length + " estudio" + (studies.length !== 1 ? "s" : "") + " almacenado" + (studies.length !== 1 ? "s" : ""),
         ),
       ),
       studies.length > 0 && h("div", { className: "row", style: { gap: 8 } },
@@ -209,6 +398,21 @@ export function HistoryScreen({ onViewHeatmap }) {
 
     // ── Filtros + vista ───────────────────────────────────────────────────────
     h("div", { className: "card card-pad", style: { marginBottom: 16 } },
+      h("div", { className: "search-field", style: { marginBottom: 18 } },
+        h("span", { className: "search-icon", "aria-hidden": true }, h(I.history, { size: 15 })),
+        h("input", {
+          id: "history-search",
+          className: "input search-input",
+          type: "search",
+          value: query,
+          onChange: handleSearch,
+          placeholder: "Buscar por ID de estudio…",
+          "aria-label": "Buscar estudios por identificador, archivo o paciente",
+          autoComplete: "off",
+        }),
+        needle && h("span", { className: "search-count", role: "status" },
+          visible.length + " resultado" + (visible.length === 1 ? "" : "s")),
+      ),
       h("div", { className: "row", style: { gap: 24, flexWrap: "wrap" } },
         // Resultado
         h("div", null,
@@ -275,7 +479,7 @@ export function HistoryScreen({ onViewHeatmap }) {
                     h("span", { className: "muted", style: { fontSize: 12 } }, visible.length + " resultados"),
                   ),
                   visible.map((s, idx) =>
-                    h(StudyRow, { key: s.id, s, idx, selected, onSelect: setSelected, onDelete: handleDelete }),
+                    h(StudyRow, { key: s.id, s, idx, selected, onSelect: handleInspeccionar, onDelete: handleDelete }),
                   ),
                 )
               // Vista por paciente
@@ -285,7 +489,7 @@ export function HistoryScreen({ onViewHeatmap }) {
                       patientGroups.length + " paciente" + (patientGroups.length !== 1 ? "s" : "")),
                   ),
                   patientGroups.map(([name, group]) =>
-                    h(PatientCard, { key: name, name, studies: group, selected, onSelect: setSelected, onDelete: handleDelete }),
+                    h(PatientCard, { key: name, name, studies: group, selected, onSelect: handleInspeccionar, onDelete: handleDelete }),
                   ),
                 ),
           ),
@@ -299,9 +503,53 @@ export function HistoryScreen({ onViewHeatmap }) {
             ),
 
             // Thumbnail
-            selected.thumbnail && h("div", { style: { marginBottom: 16 } },
-              h("img", { src: selected.thumbnail, style: { width: "100%", borderRadius: 8, objectFit: "cover", border: "1px solid var(--ink-200)" }, alt: selected.fileName }),
-            ),
+            (function () {
+              const media = getStudyMedia(selected.id);
+              const src = (media && media.src) || selected.thumbnail;
+
+              if (src) {
+                return h("div", { style: { marginBottom: 16 } },
+                  h("img", {
+                    src,
+                    style: { width: "100%", borderRadius: 8, objectFit: "cover", border: "1px solid var(--ink-200)" },
+                    alt: "Imagen endoscópica de " + (selected.fileName || "el estudio"),
+                  }),
+                );
+              }
+
+              return h("div", {
+                className: "detail-preview-empty",
+                role: "img",
+                "aria-label": "Este estudio no conserva la imagen endoscópica",
+                style: { marginBottom: 16 },
+              },
+                h(I.scan, { size: 30, "aria-hidden": true }),
+                h("div", { className: "detail-preview-text" },
+                  "La imagen no se conserva en el historial"),
+                h("div", { className: "detail-preview-hint" },
+                  "Solo se almacenan los datos del análisis"),
+              );
+            })(),
+
+            // Inspección Grad-CAM: solo tiene sentido si la imagen sigue en memoria.
+            (function () {
+              const disponible = hasStudyMedia(selected.id);
+              return h("button", {
+                className: "btn xai-action " + (disponible ? "btn-secondary" : "btn-ghost"),
+                style: { width: "100%", marginBottom: 14 },
+                onClick: () => handleOpenHeatmap(selected),
+                disabled: !disponible,
+                title: disponible
+                  ? "Ver el mapa de activación de este estudio"
+                  : "Visualización XAI disponible solo en sesión activa",
+                "aria-label": disponible
+                  ? "Ver visualización Grad-CAM del estudio"
+                  : "Visualización XAI disponible solo en sesión activa",
+              },
+                h(I.heat, { size: 14, "aria-hidden": true }),
+                disponible ? "Ver Grad-CAM" : "Grad-CAM no disponible",
+              );
+            })(),
 
             // Paciente
             selected.paciente && h("div", { style: { marginBottom: 12 } },
@@ -316,14 +564,14 @@ export function HistoryScreen({ onViewHeatmap }) {
             ),
 
             // Métricas
-            h("div", { className: "metrics", style: { marginBottom: 12 } },
+            h("div", { className: "metrics metrics-2", style: { marginBottom: 12 } },
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Probabilidad"),
                 h("div", { className: "metric-value" }, fmtProb(selected.prob)),
               ),
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Latencia"),
-                h("div", { className: "metric-value" }, selected.latencia_ms, h("small", null, " ms")),
+                h("div", { className: "metric-value" }, fmtLatencia(selected.latencia_ms), h("small", null, " ms")),
               ),
             ),
             h(ConfBar, { prob: selected.prob }),
@@ -335,8 +583,8 @@ export function HistoryScreen({ onViewHeatmap }) {
                 h("span", { className: "mono", style: { fontSize: 11 } }, selected.fileName),
               ),
               h("div", { className: "row between" },
-                h("span", { style: { color: "var(--ink-500)" } }, "Modelo"),
-                h("span", { className: "mono", style: { fontSize: 11 } }, selected.modelo),
+                h("span", { style: { color: "var(--ink-500)" } }, "Latencia"),
+                h("span", { className: "mono", style: { fontSize: 11 } }, fmtLatencia(selected.latencia_ms) + " ms"),
               ),
               h("div", { className: "row between" },
                 h("span", { style: { color: "var(--ink-500)" } }, "Fecha"),
@@ -346,9 +594,17 @@ export function HistoryScreen({ onViewHeatmap }) {
 
             h("div", { className: "alert alert-info", style: { marginTop: 16 } },
               h(I.info, { size: 14 }),
-              h("div", { style: { fontSize: 12 } }, "El mapa Grad-CAM no se almacena en el historial. Vuelve a analizar la imagen para generarlo."),
+              h("div", { style: { fontSize: 12 } },
+                hasStudyMedia(selected.id)
+                  ? "El mapa Grad-CAM de este estudio sigue disponible mientras no cierres la sesión."
+                  : "El mapa Grad-CAM no se almacena en el historial. Vuelve a analizar la imagen para generarlo."),
             ),
           ),
         ),
+
+    comparativa && h(ModalComparativo, {
+      estudio: comparativa,
+      onCerrar: () => setComparativa(null),
+    }),
   );
 }

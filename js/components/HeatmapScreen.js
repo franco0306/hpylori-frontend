@@ -1,19 +1,11 @@
 import { I } from "../icons.js";
+import { fmtLatencia } from "../format.js";
 import { SAMPLES } from "../samples.js";
+import { PALETTES, DEFAULT_PALETTE, recolorHeatmap } from "../xai.js";
 
 const React = window.React;
-const { useState } = React;
+const { useState, useEffect } = React;
 const h = React.createElement;
-
-// Capa objetivo de Grad-CAM por arquitectura (debe reflejar core/loaders.py::get_target_layer).
-const TARGET_LAYER = {
-  resnet50:       "layer4",
-  mobilenetv3:    "features[-1]",
-  efficientnetb0: "features[-1]",
-  densenet121:    "features.denseblock4",
-  googlenet:      "inception5b",
-  vgg16:          "features",
-};
 
 const LEGEND_STOPS = [
   { pct: 0,   color: "#2347C5", label: "0.0" },
@@ -21,6 +13,25 @@ const LEGEND_STOPS = [
   { pct: 60,  color: "#FBBF24", label: "0.6" },
   { pct: 100, color: "#DC2626", label: "1.0" },
 ];
+
+// Segmentos del estómago que el endoscopista documenta en un estudio de WLI.
+const SEGMENTS = [
+  { id: "antro",    label: "Antro gástrico" },
+  { id: "cuerpo",   label: "Cuerpo gástrico" },
+  { id: "incisura", label: "Incisura angularis" },
+  { id: "fondo",    label: "Fondo gástrico" },
+];
+
+// Paradas de la barra de leyenda según la paleta activa.
+function legendStops(paletteId) {
+  const palette = PALETTES[paletteId] || PALETTES[DEFAULT_PALETTE];
+  const n = palette.stops.length;
+  return palette.stops.map((color, i) => ({
+    color,
+    pct: Math.round((i / (n - 1)) * 100),
+    label: (i / (n - 1)).toFixed(1),
+  }));
+}
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
@@ -31,72 +42,119 @@ function loadImage(src) {
   });
 }
 
-async function buildPNG(sample, opacity, showHeat, caseKey) {
-  const W = 600, H = 480, LEG_H = 48;
+// Exportación comparativa: imagen original y Grad-CAM lado a lado, con el
+// diagnóstico sugerido, el segmento anatómico y la leyenda de activación.
+// Es la figura que el gastroenterólogo adjunta a la historia clínica.
+async function buildComparativePNG(opts) {
+  const {
+    src, heat, opacity, showHeat, caseLabel,
+    diagnosis, probability, segmentLabel, paletteId,
+  } = opts;
+
+  const PANEL_W = 460, PANEL_H = 345, GAP = 20, PAD = 24;
+  const HEAD_H = 74, CAP_H = 22, LEG_H = 56;
+  const W = PAD * 2 + PANEL_W * 2 + GAP;
+  const H = HEAD_H + CAP_H + PANEL_H + LEG_H + PAD;
+
   const canvas = document.createElement("canvas");
   canvas.width = W;
-  canvas.height = H + LEG_H;
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  const orig = await loadImage(sample.src);
-  ctx.drawImage(orig, 0, 0, W, H);
+  ctx.fillStyle = "#0B1120";
+  ctx.fillRect(0, 0, W, H);
 
-  if (showHeat) {
-    const heat = await loadImage(sample.heat);
+  const positive = /positiv/i.test(diagnosis || "");
+  const accent = positive ? "#F87171" : "#4ADE80";
+
+  // ── Cabecera ──────────────────────────────────────────────────────────────
+  ctx.fillStyle = "#F1F5FB";
+  ctx.font = "600 19px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("EndoScan AI · Visualización Grad-CAM", PAD, 32);
+
+  ctx.fillStyle = accent;
+  ctx.font = "700 16px Inter, sans-serif";
+  ctx.fillText(diagnosis || "Diagnóstico no disponible", PAD, 56);
+
+  ctx.fillStyle = "#8595AE";
+  ctx.font = "12px Inter, sans-serif";
+  ctx.textAlign = "right";
+  const meta = [
+    probability != null ? "Probabilidad " + probability : null,
+    segmentLabel ? "Segmento: " + segmentLabel : null,
+    new Date().toLocaleDateString("es-PE"),
+  ].filter(Boolean).join("  ·  ");
+  ctx.fillText(meta, W - PAD, 56);
+
+  // ── Rótulos de panel ──────────────────────────────────────────────────────
+  const panelY = HEAD_H + CAP_H;
+  ctx.font = "600 11px Inter, sans-serif";
+  ctx.fillStyle = "#8595AE";
+  ctx.textAlign = "left";
+  ctx.fillText("IMAGEN ORIGINAL", PAD, HEAD_H + 14);
+  ctx.fillText("GRAD-CAM SUPERPUESTO", PAD + PANEL_W + GAP, HEAD_H + 14);
+
+  // ── Panel izquierdo: original ─────────────────────────────────────────────
+  const orig = await loadImage(src);
+  ctx.drawImage(orig, PAD, panelY, PANEL_W, PANEL_H);
+
+  // ── Panel derecho: original + mapa de activación ──────────────────────────
+  const rightX = PAD + PANEL_W + GAP;
+  ctx.drawImage(orig, rightX, panelY, PANEL_W, PANEL_H);
+  if (showHeat && heat) {
+    const heatImg = await loadImage(heat);
     ctx.globalAlpha = opacity;
     ctx.globalCompositeOperation = "screen";
-    ctx.drawImage(heat, 0, 0, W, H);
+    ctx.drawImage(heatImg, rightX, panelY, PANEL_W, PANEL_H);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
   }
 
-  // Legend strip background
-  ctx.fillStyle = "#0f172a";
-  ctx.fillRect(0, H, W, LEG_H);
+  ctx.strokeStyle = "#27324A";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD + 0.5, panelY + 0.5, PANEL_W - 1, PANEL_H - 1);
+  ctx.strokeRect(rightX + 0.5, panelY + 0.5, PANEL_W - 1, PANEL_H - 1);
 
-  // Gradient bar
-  const PAD = 72, BAR_Y = H + 10, BAR_H = 12, BAR_W = W - PAD * 2;
-  const grad = ctx.createLinearGradient(PAD, 0, PAD + BAR_W, 0);
-  grad.addColorStop(0,    "rgba(35,71,197,0.95)");
-  grad.addColorStop(0.33, "rgba(22,163,74,0.95)");
-  grad.addColorStop(0.6,  "rgba(251,191,36,0.95)");
-  grad.addColorStop(1,    "rgba(220,38,38,0.95)");
+  // ── Leyenda de activación con la paleta activa ────────────────────────────
+  const stops = legendStops(paletteId);
+  const BAR_Y = panelY + PANEL_H + 18, BAR_H = 12;
+  const BAR_X = PAD + 46, BAR_W = W - PAD * 2 - 92;
+  const grad = ctx.createLinearGradient(BAR_X, 0, BAR_X + BAR_W, 0);
+  stops.forEach((st) => grad.addColorStop(st.pct / 100, st.color));
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.roundRect(PAD, BAR_Y, BAR_W, BAR_H, 6);
+  ctx.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, 6);
   ctx.fill();
 
-  // Tick labels
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "10px monospace";
-  LEGEND_STOPS.forEach(({ pct, label }) => {
-    const x = PAD + (BAR_W * pct) / 100;
-    ctx.textAlign = pct === 0 ? "left" : pct === 100 ? "right" : "center";
-    ctx.fillText(label, x, BAR_Y + BAR_H + 14);
-  });
-
-  // Side labels
+  ctx.fillStyle = "#8595AE";
+  ctx.font = "10px Inter, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("Baja", PAD - 6, BAR_Y + BAR_H - 1);
+  ctx.fillText("Baja", BAR_X - 8, BAR_Y + BAR_H - 1);
   ctx.textAlign = "left";
-  ctx.fillText("Alta", PAD + BAR_W + 6, BAR_Y + BAR_H - 1);
+  ctx.fillText("Alta", BAR_X + BAR_W + 8, BAR_Y + BAR_H - 1);
 
-  // File name watermark
-  ctx.fillStyle = "rgba(148,163,184,0.5)";
-  ctx.font = "9px monospace";
   ctx.textAlign = "center";
-  ctx.fillText(`gradcam_${caseKey} · Grad-CAM · EndoScan AI`, W / 2, H + LEG_H - 4);
+  ctx.fillStyle = "#5C6B85";
+  ctx.font = "9px Inter, sans-serif";
+  ctx.fillText(
+    caseLabel + "  ·  Apoyo diagnóstico — no sustituye el criterio del especialista",
+    W / 2, H - 10,
+  );
 
   const a = document.createElement("a");
-  a.download = `gradcam_${caseKey}_${new Date().toISOString().slice(0, 10)}.png`;
+  a.download = "gradcam_" + String(caseLabel).replace(/[^A-Za-z0-9_-]/g, "_") +
+    "_" + new Date().toISOString().slice(0, 10) + ".png";
   a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
-export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
+export function HeatmapScreen({ heatmapResult, onNewAnalysis, xaiPalette }) {
   const [k, setK]               = useState("pos1");
   const [op, setOp]             = useState(0.65);
   const [show, setShow]         = useState(true);
+  const [segment, setSegment]   = useState(SEGMENTS[0].id);
+  const [heatSrc, setHeatSrc]   = useState(null);
   const [downloading, setDownloading] = useState(false);
 
   // Live mode: result from SingleScreen. Demo mode: SAMPLES.
@@ -111,10 +169,36 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
     ? (heatmapResult.file.name || "imagen analizada")
     : k;
 
+  const palette      = xaiPalette || DEFAULT_PALETTE;
+  const stops        = legendStops(palette);
+  const segmentLabel = (SEGMENTS.find((sg) => sg.id === segment) || SEGMENTS[0]).label;
+  const diagnosis    = positive
+    ? "Sospecha de infección por H. pylori"
+    : "Mucosa sin hallazgos patológicos";
+  const probability  = isLive
+    ? (heatmapResult.result.prob * 100).toFixed(1) + " %"
+    : null;
+
+  // Recolorea el mapa de activación cuando cambia la imagen o la paleta.
+  useEffect(() => {
+    let alive = true;
+    if (!heat) { setHeatSrc(null); return undefined; }
+    recolorHeatmap(heat, palette).then((out) => { if (alive) setHeatSrc(out); });
+    return () => { alive = false; };
+  }, [heat, palette]);
+
+  const handleSelectSegment = (id) => {
+    if (id === segment) return;   // early return
+    setSegment(id);
+  };
+
   async function handleDownload() {
     setDownloading(true);
     try {
-      await buildPNG({ src, heat }, op, show, caseLabel);
+      await buildComparativePNG({
+        src, heat: heatSrc || heat, opacity: op, showHeat: show,
+        caseLabel, diagnosis, probability, segmentLabel, paletteId: palette,
+      });
     } finally {
       setDownloading(false);
     }
@@ -124,7 +208,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Visualización Grad-CAM"),
-        h("div", { className: "page-sub" }, "HU-002 · Mapa de activación de " + model.name),
+        h("div", { className: "page-sub" }, "Zonas de la mucosa que sustentan el diagnóstico sugerido"),
       ),
       h("div", { className: "row", style: { gap: 8 } },
         onNewAnalysis && h("button", {
@@ -142,10 +226,44 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
           className: "btn btn-primary",
           onClick: handleDownload,
           disabled: downloading,
+          "aria-label": "Exportar comparativa de imagen original y Grad-CAM en PNG",
+          title: "Exporta original + Grad-CAM con el diagnóstico sugerido",
         },
-          h(I.dl, { size: 14 }),
-          downloading ? "Generando…" : "Descargar PNG",
+          downloading ? h("span", { className: "spinner-sm" }) : h(I.dl, { size: 14 }),
+          downloading ? "Generando…" : "Exportar comparativa (PNG)",
         ),
+      ),
+    ),
+    h("div", { className: "card card-pad", style: { marginBottom: 20 } },
+      h("div", { className: "row between", style: { flexWrap: "wrap", gap: 12 } },
+        h("div", null,
+          h("div", { className: "section-title", style: { marginBottom: 4 } }, "Segmento anatómico analizado"),
+          h("div", { style: { fontSize: 12.5, color: "var(--ink-500)" } },
+            "Se registra junto al hallazgo para la trazabilidad del estudio."),
+        ),
+        h("div", {
+          className: "segment-pills",
+          role: "radiogroup",
+          "aria-label": "Segmento anatómico analizado",
+        },
+          SEGMENTS.map((sg) =>
+            h("button", {
+              key: sg.id,
+              type: "button",
+              role: "radio",
+              "aria-checked": segment === sg.id,
+              className: "segment-pill" + (segment === sg.id ? " selected" : ""),
+              onClick: () => handleSelectSegment(sg.id),
+            }, sg.label),
+          ),
+        ),
+      ),
+    ),
+    isLive && !hasHeat && h("div", { className: "alert alert-info", style: { marginBottom: 20 } },
+      h(I.info, { size: 16 }),
+      h("div", null,
+        h("strong", null, "Este estudio no conserva el mapa de activación. "),
+        "El historial solo almacena la miniatura; vuelva a analizar la imagen original para regenerar el Grad-CAM.",
       ),
     ),
     h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 } },
@@ -165,7 +283,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
         h("div", { className: "card-head" },
           h("div", null,
             h("h3", { className: "card-title" }, "Grad-CAM"),
-            h("div", { className: "card-sub" }, "Capa " + (TARGET_LAYER[model.id] || "layer4") + " · " + model.name),
+            h("div", { className: "card-sub" }, "Mapa de calor superpuesto sobre la imagen endoscópica"),
           ),
           h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
             positive ? "POSITIVO" : "NEGATIVO"),
@@ -173,7 +291,9 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
         h("div", { style: { padding: 16 } },
           h("div", { className: "heatmap-stage" },
             h("img", { src }),
-            show && h("img", { className: "heat", src: heat, style: { opacity: op } }),
+            show && (heatSrc || heat) && h("img", {
+              className: "heat", src: heatSrc || heat, alt: "", style: { opacity: op },
+            }),
           ),
           h("div", { style: { marginTop: 14 } },
             h("div", { className: "row between", style: { marginBottom: 6 } },
@@ -184,10 +304,16 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
               className: "slider", type: "range",
               min: "0", max: "1", step: "0.01",
               value: op, onChange: (e) => setOp(Number(e.target.value)),
+              "aria-label": "Opacidad del mapa de activación",
+              "aria-valuetext": Math.round(op * 100) + " por ciento",
             }),
             h("div", { className: "row", style: { marginTop: 10, gap: 10 } },
               h("label", { className: "row", style: { gap: 6, fontSize: 12 } },
-                h("input", { type: "checkbox", checked: show, onChange: (e) => setShow(e.target.checked) }),
+                h("input", {
+                  type: "checkbox", checked: show,
+                  onChange: (e) => setShow(e.target.checked),
+                  "aria-label": "Mostrar superposición del mapa de activación",
+                }),
                 "Mostrar superposición",
               ),
             ),
@@ -201,9 +327,13 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
         h("div", { className: "legend" },
           h("span", { className: "legend-label" }, "Baja"),
           h("div", { style: { flex: 1 } },
-            h("div", { className: "legend-bar" }),
+            h("div", {
+              className: "legend-bar",
+              style: { background: "linear-gradient(90deg, " +
+                stops.map((st) => st.color + " " + st.pct + "%").join(", ") + ")" },
+            }),
             h("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 4 } },
-              LEGEND_STOPS.map(({ label, color }) =>
+              stops.map(({ label, color }) =>
                 h("span", {
                   key: label,
                   className: "legend-label",
@@ -221,7 +351,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
       h("div", { className: "card card-pad" },
         h("div", { className: "section-title" }, "Explicación clínica"),
         isLive && heatmapResult.result && h("div", {
-          className: "metrics",
+          className: "metrics metrics-2",
           style: { marginBottom: 12 },
         },
           h("div", { className: "metric" },
@@ -231,15 +361,11 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
           h("div", { className: "metric" },
             h("div", { className: "metric-label" }, "Latencia"),
             h("div", { className: "metric-value" },
-              heatmapResult.result.latencia_ms, h("small", null, "ms"))),
-          h("div", { className: "metric" },
-            h("div", { className: "metric-label" }, "Modelo"),
-            h("div", { className: "metric-value", style: { fontSize: 12 } },
-              heatmapResult.result.modelo || model.name)),
+              fmtLatencia(heatmapResult.result.latencia_ms), h("small", null, "ms"))),
         ),
         positive
           ? h("p", { style: { fontSize: 13.5, color: "var(--ink-700)", lineHeight: 1.6, margin: 0 } },
-              "El modelo concentra su atención en el ",
+              "El análisis concentra la activación en el ",
               h("strong", null, "cuadrante superior-derecho"),
               ", donde se observa una zona de mucosa con ",
               h("strong", null, "patrón nodular irregular y enrojecimiento focal"),
@@ -247,7 +373,7 @@ export function HeatmapScreen({ model, heatmapResult, onNewAnalysis }) {
           : h("p", { style: { fontSize: 13.5, color: "var(--ink-700)", lineHeight: 1.6, margin: 0 } },
               "La activación es ",
               h("strong", null, "difusa y de baja magnitud"),
-              ", sin focos claros sobre la mucosa. El modelo no encuentra patrones discriminativos."),
+              ", sin focos claros sobre la mucosa. No se identifican patrones sugestivos de infección."),
         h("div", { className: "alert alert-info", style: { marginTop: 14 } },
           h(I.info, { size: 16 }),
           h("div", null,

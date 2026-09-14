@@ -1,12 +1,48 @@
 import { I } from "../icons.js";
+import { fmtLatencia } from "../format.js";
 import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { predict } from "../api.js";
 import { saveStudy } from "../history.js";
+import { cacheStudyMedia } from "../sessionCache.js";
 
 const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
+
+// Desde aqui se explica la espera. Cuatro segundos es mas de lo que tarda una
+// inferencia normal (~1 s) y menos de lo que la gente aguanta sin explicacion.
+const TIEMPO_AVISO_ESPERA_MS = 4000;
+
+/**
+ * Traduce el fallo de una inferencia en su causa real.
+ *
+ * El mensaje anterior era siempre "tiempo de espera agotado", tambien cuando el
+ * servidor habia rechazado el formato o devuelto un 500. Un aviso que miente
+ * sobre la causa hace perder mas tiempo del que ahorra.
+ */
+function describirFalloPredict(err) {
+  const estado = err && err.estado;
+
+  if (err && err.message === "API_TIMEOUT") {
+    return "El servidor no respondió a tiempo. Si es el primer análisis tras un " +
+           "rato de inactividad, el motor tarda en arrancar: inténtelo otra vez.";
+  }
+  if (err && err.message === "INVALID_FILE") {
+    return "No se pudo leer la imagen seleccionada. Pruebe con otro archivo.";
+  }
+  if (estado === 413) return "La imagen supera el máximo de 10 MB.";
+  if (estado === 415) return "Formato no soportado. Use una imagen JPG o PNG.";
+  if (estado === 429) {
+    return "Demasiadas solicitudes seguidas. Espere unos segundos y reintente.";
+  }
+  if (estado >= 500) {
+    return "El servidor de análisis respondió con un error (HTTP " + estado + "). " +
+           "Inténtelo de nuevo en unos momentos.";
+  }
+  return "No se pudo contactar con el servidor de análisis. Compruebe su conexión.";
+}
+
 
 export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [file,        setFile]        = useState(null);
@@ -16,6 +52,14 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [result,      setResult]      = useState(null);
   const [error,       setError]       = useState(null);
   const [patientName, setPatientName] = useState("");   // nombre/ID del paciente (opcional)
+  // El guardado en el historial no puede fallar en silencio: el médico tiene
+  // que saber que ese análisis no quedó registrado.
+  const [historialFallo, setHistorialFallo] = useState(null);   // { estado, detalle }
+  // El motor vive en un contenedor que se duerme; la primera peticion tras un
+  // rato de inactividad tarda. Pasados unos segundos se explica, en vez de
+  // dejar una barra avanzando sin decir por que.
+  const [esperaLarga, setEsperaLarga] = useState(false);
+  const [reintentando, setReintentando] = useState(false);
   const inputRef = useRef(null);
 
   const accept = (f) => {
@@ -39,6 +83,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
 
   const analyze = async (opts = {}) => {
     setPhase("loading"); setProgress(0); setError(null); setResult(null);
+    setEsperaLarga(false); setReintentando(false);
+    const avisoLento = setTimeout(() => setEsperaLarga(true), TIEMPO_AVISO_ESPERA_MS);
     const t0 = Date.now();
     const targetMs = model.metrics.latency_ms;
     const iv = setInterval(() => {
@@ -49,18 +95,50 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       const heat = file._s ? SAMPLES[file._s].heat : null;
       // Si hay un File real lo enviamos; si es muestra, mandamos el objeto con `src`.
       const payload = file._raw || file;
-      const res = await predict(payload, { modelId: model.id, positive, heat, threshold, forceError: opts.forceError });
-      clearInterval(iv); setProgress(100); setResult(res); setPhase("done");
-      saveStudy(file, res, patientName); // fire-and-forget
+      // Sin `modelId`: la capa de API fija ResNet50 para toda la interfaz clínica.
+      const res = await predict(payload, {
+        positive, heat, threshold, forceError: opts.forceError,
+        onReintento: () => setReintentando(true),
+      });
+      clearInterval(iv); clearTimeout(avisoLento);
+      setEsperaLarga(false); setReintentando(false);
+      setProgress(100); setResult(res); setPhase("done");
+      // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
+      // persiste metadatos, así que esta es la única copia mientras dure la sesión.
+      setHistorialFallo(null);
+      saveStudy(res, patientName)
+        .then((saved) => {
+          if (!saved || !saved.id) return;   // early return
+          // La caché de sesión es accesoria: si falla no debe hacerse pasar por
+          // un fallo de guardado, que es un aviso mucho más grave.
+          try {
+            cacheStudyMedia(saved.id, {
+              src: file.src,
+              heatmap_b64: res.heatmap_b64 || null,
+              name: file.name,
+            });
+          } catch { /* noop */ }
+        })
+        // El historial nunca bloquea el diagnóstico, pero su fallo se avisa.
+        .catch((err) => setHistorialFallo({
+          estado: err && err.estado,
+          detalle: (err && err.detalle) || null,
+        }));
     } catch (e) {
-      clearInterval(iv); setPhase("error");
-      setError({ k: "api", m: "Tiempo de espera agotado. Verifica conexión con " + CONFIG.PREDICT_PATH + "." });
+      clearInterval(iv); clearTimeout(avisoLento);
+      setEsperaLarga(false); setReintentando(false);
+      setPhase("error");
+      // Antes cualquier fallo se anunciaba como "tiempo de espera agotado",
+      // incluido un 415 o un 500: el mensaje ocultaba la causa real.
+      setError({ k: "api", m: describirFalloPredict(e) });
     }
   };
 
+  const handlePatientChange = (e) => setPatientName(e.target.value);
+
   const reset = () => {
     setFile(null); setResult(null); setPhase("idle");
-    setProgress(0); setError(null); setPatientName("");
+    setProgress(0); setError(null); setPatientName(""); setHistorialFallo(null);
   };
 
   const downloadReport = async () => {
@@ -72,8 +150,9 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     const conf      = result.prob;
     const confLabel = conf >= 0.85 ? "Alta" : conf >= 0.65 ? "Media" : "Baja";
     const colorResult = isPos ? "#dc2626" : "#16a34a";
-    const pacienteRow = patientName.trim()
-      ? `<tr><td>Paciente</td><td><strong>${patientName.trim()}</strong></td></tr>` : "";
+    const pacienteId  = patientName.trim();
+    const pacienteRow = pacienteId
+      ? `<tr><td>ID Paciente / HC</td><td><strong>${pacienteId}</strong></td></tr>` : "";
 
     // ── Construir imagen compuesta (original + heatmap) con Canvas ─────────
     const loadImg = (src) => new Promise((res, rej) => {
@@ -168,6 +247,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     </div>
     <div class="meta">
       <div>Informe de análisis endoscópico</div>
+      ${pacienteId ? `<div style="margin-top:4px"><strong>Paciente:</strong> ${pacienteId}</div>` : ""}
       <div style="margin-top:4px">${fecha}</div>
     </div>
   </div>
@@ -180,17 +260,21 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     <div class="section-title">Resultado del análisis</div>
     <div class="result-box">
       <div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">CLASE PREDICHA</div>
-        <div class="result-class">${result.clase}${isPos ? " · H. pylori" : " · sin hallazgo"}</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">DIAGNÓSTICO SUGERIDO</div>
+        <div class="result-class">${isPos ? "Sospecha de infección por H. pylori" : "Mucosa sin hallazgos patológicos"}</div>
       </div>
       <div style="text-align:right">
         <div class="result-prob">${probPct}%</div>
-        <div class="result-prob-label">P(${result.clase.toLowerCase()})</div>
+        <div class="result-prob-label">Probabilidad</div>
       </div>
     </div>
   </div>
 
   <div style="display:flex;gap:24px">
+    <div class="section" style="width:190px;flex-shrink:0">
+      <div class="section-title">Imagen analizada</div>
+      <img src="${file.src}" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;display:block" />
+    </div>
     <div class="section" style="flex:1">
       <div class="section-title">Datos del estudio</div>
       <table>
@@ -199,7 +283,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
         <tr><td>Modelo</td><td>${result.modelo || model.name} ${model.version}</td></tr>
         <tr><td>Probabilidad cruda</td><td>${(result.prob * 100).toFixed(2)}%</td></tr>
         <tr><td>Confianza</td><td>${confLabel} (${(conf * 100).toFixed(1)}%)</td></tr>
-        <tr><td>Latencia inferencia</td><td>${result.latencia_ms} ms</td></tr>
+        <tr><td>Tiempo de análisis</td><td>${fmtLatencia(result.latencia_ms)} ms</td></tr>
       </table>
     </div>
     <div class="section" style="flex:1">
@@ -232,6 +316,10 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   };
 
   const positive = result && result.clase === "Positivo";
+  // Redacción clínica del veredicto: el médico lee un hallazgo, no una clase.
+  const diagnosis = positive
+    ? "Sospecha de infección por H. pylori"
+    : "Mucosa sin hallazgos patológicos";
   const probShown = result ? result.prob : 0;
   const conf = result ? result.prob : 0;
   const confTier = conf >= 0.85
@@ -245,7 +333,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       h("div", null,
         h("h1", { className: "page-title" }, "Análisis individual"),
         h("div", { className: "page-sub" },
-          "HU-001 · Inferencia con ", h("strong", null, model.name), " · objetivo < 2 000 ms",
+          "Análisis asistido de mucosa gástrica en tiempo real",
         ),
       ),
       h("button", { className: "btn btn-ghost", onClick: reset, disabled: phase === "loading" },
@@ -265,6 +353,25 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           }, h(I.trash, { size: 14 })),
         ),
         h("div", { className: "card-pad" },
+          // Identificador del paciente: se captura antes de cargar la imagen
+          // para que quede asociado al estudio desde el primer momento.
+          h("div", { className: "field", style: { marginBottom: 16 } },
+            h("label", { className: "field-label", htmlFor: "patient-id" },
+              "ID Paciente / Historia Clínica ",
+              h("span", { className: "field-optional" }, "(Opcional)"),
+            ),
+            h("input", {
+              id: "patient-id",
+              className: "input field-input",
+              type: "text",
+              value: patientName,
+              onChange: handlePatientChange,
+              placeholder: "Ej: HC-2026-104",
+              disabled: phase === "loading",
+              autoComplete: "off",
+              "aria-label": "ID de paciente o historia clínica (opcional)",
+            }),
+          ),
           !file ? h("div", null,
             h("div", {
               "data-dropzone": true,
@@ -282,6 +389,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("input", {
                 ref: inputRef, type: "file",
                 accept: "image/jpeg,image/png", hidden: true,
+                "aria-label": "Seleccionar imagen endoscópica",
                 onChange: (e) => accept(e.target.files && e.target.files[0]),
               }),
             ),
@@ -317,28 +425,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("div", { className: "preview-chip" },
                 file.name + " · " + (file.size / 1024 / 1024).toFixed(2) + " MB"),
             ),
-            // ── Campo de paciente ────────────────────────────────────────────
-            h("div", { style: { marginTop: 14 } },
-              h("label", { style: { fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".06em", display: "block", marginBottom: 5 } },
-                "Paciente ", h("span", { style: { fontWeight: 400, textTransform: "none" } }, "(opcional)"),
-              ),
-              h("input", {
-                type: "text",
-                value: patientName,
-                onChange: (e) => setPatientName(e.target.value),
-                placeholder: "Nombre o ID del paciente — ej. Juan Quispe / PAC-042",
-                disabled: phase === "loading",
-                style: {
-                  width: "100%", boxSizing: "border-box",
-                  padding: "8px 12px", fontSize: 13,
-                  border: "1px solid var(--ink-200)", borderRadius: 8,
-                  outline: "none", fontFamily: "inherit",
-                  background: phase === "loading" ? "var(--ink-50)" : "var(--white)",
-                },
-              }),
-            ),
             h("div", { className: "row between", style: { marginTop: 12 } },
-              h("span", { className: "badge badge-info" }, "Modelo: " + model.name),
+              h("span", { className: "badge badge-info" }, "Listo para analizar"),
               h("div", { className: "row", style: { gap: 8 } },
                 h("button", { className: "btn btn-secondary", onClick: reset, disabled: phase === "loading" },
                   h(I.x, { size: 14 }), "Cambiar"),
@@ -379,11 +467,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       h("div", { className: "card" },
         h("div", { className: "card-head" },
           h("div", null,
-            h("h3", { className: "card-title" }, "2 · Resultado del modelo"),
-            h("div", { className: "card-sub" }, model.name + " " + model.version + " · " + model.arch),
+            h("h3", { className: "card-title" }, "2 · Resultado del análisis"),
+            h("div", { className: "card-sub" }, "Diagnóstico sugerido por IA · requiere validación clínica"),
           ),
           result && h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
-            result.clase.toUpperCase()),
+            positive ? "POSITIVO" : "NEGATIVO"),
         ),
         h("div", { className: "card-pad" },
           phase === "idle" && !result && h("div", { className: "result-empty" },
@@ -393,32 +481,40 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           ),
           phase === "loading" && h("div", { style: { textAlign: "center", padding: "20px 0" } },
             h("div", { className: "spinner" }),
-            h("div", { style: { fontWeight: 600 } }, "Procesando con " + model.name + "…"),
+            h("div", { style: { fontWeight: 600 } },
+              reintentando ? "Reintentando el análisis…" : "Analizando imagen endoscópica…"),
+            (esperaLarga || reintentando) && h("div", {
+              style: { fontSize: 12.5, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 },
+              role: "status",
+            },
+              "Iniciando el motor de inferencia en la nube y generando el mapa ",
+              "Grad-CAM. La primera petición tras un rato de inactividad puede ",
+              "tardar cerca de un minuto."),
             h("div", { className: "muted", style: { fontSize: 12.5, marginTop: 4 } },
-              "Pre-procesamiento → forward pass → Grad-CAM"),
+              "Procesando mucosa y generando mapa de zonas relevantes"),
             h("div", { className: "progress", style: { marginTop: 16 } },
               h("div", { className: "progress-fill", style: { width: progress + "%" } })),
             h("div", { className: "row between", style: { marginTop: 8, fontSize: 11.5, color: "var(--ink-500)" } },
               h("span", { className: "mono" }, progress + "%"),
-              h("span", { className: "mono" }, "objetivo < 2.0 s"),
+              h("span", null, "Suele tardar menos de 2 segundos"),
             ),
           ),
           phase === "done" && result && h("div", null,
             h("div", { className: "verdict " + (positive ? "verdict-pos" : "verdict-neg") },
               h("div", null,
-                h("div", { className: "verdict-label" }, "Clase predicha"),
+                h("div", { className: "verdict-label" }, "Diagnóstico sugerido"),
                 h("div", {
                   className: "verdict-value",
                   style: { color: positive ? "var(--red-600)" : "var(--green-600)" },
-                }, result.clase + (positive ? " · H. pylori" : " · sin hallazgo")),
+                }, diagnosis),
               ),
               h("div", { style: { textAlign: "right" } },
                 h("div", {
                   className: "verdict-prob",
                   style: { color: positive ? "var(--red-600)" : "var(--green-600)" },
                 }, (probShown * 100).toFixed(1) + "%"),
-                h("div", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
-                  "P(" + result.clase.toLowerCase() + ")"),
+                h("div", { style: { fontSize: 11, color: "var(--ink-500)" } },
+                  "Probabilidad"),
               ),
             ),
             h("div", { style: { marginTop: 16 } },
@@ -432,7 +528,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("div", { className: "confbar" },
                 h("div", { className: "confbar-fill", style: { width: (conf * 100) + "%", background: confTier.c } })),
             ),
-            h("div", { className: "metrics", style: { marginTop: 16 } },
+            h("div", { className: "metrics metrics-2", style: { marginTop: 16 } },
               h("div", { className: "metric" },
                 h("div", { className: "metric-label" }, "Probabilidad"),
                 h("div", { className: "metric-value" }, (result.prob * 100).toFixed(2), h("small", null, "%"))),
@@ -441,10 +537,26 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 h("div", {
                   className: "metric-value",
                   style: { color: result.latencia_ms < 2000 ? "var(--ink-900)" : "var(--red-600)" },
-                }, result.latencia_ms, h("small", null, "ms"))),
-              h("div", { className: "metric" },
-                h("div", { className: "metric-label" }, "Modelo"),
-                h("div", { className: "metric-value", style: { fontSize: 13 } }, model.version)),
+                }, fmtLatencia(result.latencia_ms), h("small", null, "ms"))),
+            ),
+            historialFallo && h("div", {
+              className: "alert alert-warn",
+              style: { marginTop: 14 },
+              role: "status",
+            },
+              h(I.alert, { size: 16 }),
+              h("div", null,
+                h("strong", null, "Este análisis no se guardó en el historial. "),
+                "El resultado que ve en pantalla es válido, pero no quedará registrado ",
+                "en el expediente. Descargue el informe si necesita conservarlo.",
+                (historialFallo.detalle || historialFallo.estado) && h("div", {
+                  style: { marginTop: 6, fontSize: 12 },
+                },
+                  h("strong", null, "Motivo: "),
+                  historialFallo.detalle ||
+                    ("el servidor respondió HTTP " + historialFallo.estado),
+                ),
+              ),
             ),
             positive && h("div", { className: "alert alert-warn", style: { marginTop: 14 } },
               h(I.info, { size: 16 }),
@@ -454,7 +566,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               ),
             ),
             h("div", { className: "row", style: { marginTop: 16, gap: 8 } },
-              h("button", { className: "btn btn-secondary", onClick: downloadReport }, h(I.dl, { size: 14 }), "Descargar informe PDF"),
+              h("button", {
+                className: "btn btn-primary",
+                onClick: downloadReport,
+                "aria-label": "Descargar informe clínico en PDF",
+              }, h(I.dl, { size: 14 }), "Descargar Informe Clínico (PDF)"),
               h("button", {
                 className: "btn btn-ghost",
                 onClick: () => onViewHeatmap && onViewHeatmap(result, file),

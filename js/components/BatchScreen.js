@@ -3,16 +3,30 @@ import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { CLINICAL_MODEL_ID } from "../api.js";
 import { authFetch } from "../auth.js";
+import { saveStudiesBatch } from "../history.js";
+import { cacheStudyMedia } from "../sessionCache.js";
+import { validarCodigoPaciente } from "../validacion.js";
+import { PatientPicker, codigoPaciente } from "./PatientPicker.jsx";
+import { toast } from "../ui/toast.jsx";
 
 const React = window.React;
 const { useState, useRef } = React;
 const h = React.createElement;
+
+// Veces que se respeta una pausa por cuota antes de dar la imagen por fallida.
+const MAX_ESPERAS = 4;
 
 export function BatchScreen({ model, threshold }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState("all");
   const [rejected, setRejected] = useState(0);
+  // Un lote son varias tomas de la MISMA endoscopía: se elige el paciente una
+  // vez y todas las imágenes quedan en su historial.
+  const [pacienteTexto, setPacienteTexto] = useState("");
+  const [pacienteSel, setPacienteSel] = useState(null);
+  const [errorPaciente, setErrorPaciente] = useState(null);
+  const [pausa, setPausa] = useState(0);   // segundos de espera por cuota
   const inputRef = useRef(null);
 
   const acceptFiles = (fileList) => {
@@ -55,7 +69,47 @@ export function BatchScreen({ model, threshold }) {
     })));
   };
 
+  // Espera visible: cuenta atrás en pantalla mientras el servidor pide pausa.
+  const esperar = (segundos) => new Promise((resolver) => {
+    let restante = segundos;
+    setPausa(restante);
+    const iv = setInterval(() => {
+      restante -= 1;
+      setPausa(Math.max(0, restante));
+      if (restante <= 0) { clearInterval(iv); setPausa(0); resolver(); }
+    }, 1000);
+  });
+
+  // Inferencia de una imagen. Si el servidor responde 429 (límite de 30
+  // solicitudes por minuto) no es un fallo: se espera lo que indica
+  // Retry-After y se reintenta la MISMA imagen.
+  const inferir = async (fd) => {
+    for (let intento = 0; ; intento++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
+      let res;
+      try {
+        res = await authFetch(CONFIG.PREDICT_PATH, { method: "POST", body: fd, signal: ctrl.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (res.status === 429 && intento < MAX_ESPERAS) {
+        const segundos = parseInt(res.headers.get("Retry-After") || "", 10);
+        await esperar(Number.isFinite(segundos) && segundos > 0 ? Math.min(segundos, 65) : 20);
+        continue;
+      }
+      if (!res.ok) throw new Error("HTTP_" + res.status);
+      return res.json();
+    }
+  };
+
   const run = async () => {
+    const motivo = pacienteTexto.trim() ? validarCodigoPaciente(pacienteTexto) : null;
+    if (motivo) { setErrorPaciente(motivo); return; }
+    setErrorPaciente(null);
+    const codigo = codigoPaciente(pacienteTexto, pacienteSel);
+    const resultados = [];   // { it, data } de las inferencias correctas
+
     setRunning(true);
     for (const it of items) {
       if (it.status !== "queued") continue;
@@ -68,7 +122,7 @@ export function BatchScreen({ model, threshold }) {
           // imagen real subida por el usuario
           fd.append("file", it.file, it.name);
         } else if (it._demo && it.thumb) {
-          // imagen de demo (data URL base64)
+          // imagen de demo (servida como recurso estático)
           const res = await fetch(it.thumb);
           const blob = await res.blob();
           fd.append("file", blob, it.name || "demo.jpg");
@@ -79,29 +133,14 @@ export function BatchScreen({ model, threshold }) {
           fd.append("threshold", String(threshold));
         }
 
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
-
         const start = performance.now();
-        let res;
-        try {
-          // Con sesión: el servidor ya no atiende inferencias anónimas.
-          res = await authFetch(CONFIG.PREDICT_PATH, {
-            method: "POST",
-            body: fd,
-            signal: ctrl.signal,
-          });
-        } finally {
-          clearTimeout(timer);
-        }
-
-        if (!res.ok) throw new Error("HTTP_" + res.status);
-        const data = await res.json();
+        const data = await inferir(fd);
         const ms = Math.round(performance.now() - start);
+        resultados.push({ it, data });
 
         setItems((prev) => prev.map((p) =>
           p.id === it.id
-            ? { ...p, status: "done", clase: data.clase, prob: data.prob, latencia: data.latencia_ms || ms }
+            ? { ...p, status: "done", clase: data.clase, prob: data.prob, latencia: data.latencia_ms || ms, guardado: null }
             : p
         ));
       } catch (e) {
@@ -109,6 +148,28 @@ export function BatchScreen({ model, threshold }) {
         setItems((prev) => prev.map((p) =>
           p.id === it.id ? { ...p, status: "done", clase: "Error", prob: 0, latencia: 0, errorMsg } : p
         ));
+      }
+    }
+
+    // Todo el lote entra al historial en UNA petición, asociado al paciente.
+    if (resultados.length) {
+      try {
+        const guardados = await saveStudiesBatch(resultados.map((r) => r.data), codigo);
+        const porItem = new Map(resultados.map((r, i) => [r.it.id, guardados[i]]));
+        resultados.forEach((r, i) => {
+          const estudio = guardados[i];
+          if (!estudio || !estudio.id) return;
+          try { cacheStudyMedia(estudio.id, { src: r.it.thumb, heatmap_b64: r.data.heatmap_b64 || null, name: r.it.name }); }
+          catch { /* la caché de sesión es accesoria */ }
+        });
+        setItems((prev) => prev.map((p) => porItem.has(p.id) ? { ...p, guardado: Boolean(porItem.get(p.id)) } : p));
+        toast.success(guardados.length + " estudio" + (guardados.length === 1 ? "" : "s") + " guardado" + (guardados.length === 1 ? "" : "s"),
+          codigo ? "En el historial del paciente " + codigo.toUpperCase() + "." : "En el historial, sin paciente asignado.");
+      } catch (err) {
+        const ids = new Set(resultados.map((r) => r.it.id));
+        setItems((prev) => prev.map((p) => ids.has(p.id) ? { ...p, guardado: false } : p));
+        toast.error("El lote no se guardó en el historial",
+          (err && err.detalle) || "Los resultados siguen en pantalla: exporte el CSV si necesita conservarlos.");
       }
     }
     setRunning(false);
@@ -181,6 +242,29 @@ export function BatchScreen({ model, threshold }) {
         h("div", { className: "kpi-label" }, "Avance"),
         h("div", { className: "kpi-value" }, pct + "%")),
     ),
+    // ── Paciente del lote ─────────────────────────────────────────────────────
+    h("div", { className: "card card-pad lote-paciente" },
+      h("div", { className: "lote-paciente-txt" },
+        h("div", { className: "section-title", style: { marginBottom: 4 } }, "Paciente del lote"),
+        h("div", { className: "muted", style: { fontSize: 12.5, lineHeight: 1.5 } },
+          "Todas las imágenes de esta serie se guardarán en el historial de este paciente. ",
+          "Opcional: sin paciente, se guardan sin asignar."),
+      ),
+      h("div", { className: "lote-paciente-campo" },
+        h("label", { className: "field-label", htmlFor: "lote-paciente" },
+          "ID Paciente / Historia Clínica ", h("span", { className: "field-optional" }, "(Opcional)")),
+        h(PatientPicker, {
+          inputId: "lote-paciente",
+          value: pacienteTexto,
+          onTextChange: (v) => { setPacienteTexto(v); setErrorPaciente(null); },
+          selected: pacienteSel,
+          onSelect: setPacienteSel,
+          disabled: running,
+        }),
+        errorPaciente && h("div", { className: "pp-estado is-error", role: "alert" },
+          h(I.alert, { size: 12 }), errorPaciente),
+      ),
+    ),
     rejected > 0 && h("div", { className: "alert alert-error", style: { marginBottom: 20 } },
       h(I.alert, { size: 16 }),
       h("div", null,
@@ -217,6 +301,11 @@ export function BatchScreen({ model, threshold }) {
         ),
       ),
     ),
+    pausa > 0 && h("div", { className: "alert alert-info", role: "status", style: { marginBottom: 20 } },
+      h(I.info, { size: 16 }),
+      h("div", null,
+        h("strong", null, "Pausa breve: reanudando en " + pausa + " s. "),
+        "El servidor admite 30 solicitudes por minuto; el lote continúa solo, no hace falta hacer nada.")),
     total > 0 && h("div", { className: "card", style: { marginBottom: 20 } },
       h("div", { className: "card-head" },
         h("div", null,
@@ -300,8 +389,15 @@ export function BatchScreen({ model, threshold }) {
               it.status === "queued"  && h("span", { className: "mono muted", style: { fontSize: 12 } }, "● en cola"),
               it.status === "running" && h("span", { className: "row", style: { gap: 6, fontSize: 12, color: "var(--blue-700)" } },
                 h("span", { className: "spinner-sm" }), "procesando"),
-              it.status === "done"    && h("span", { className: "row", style: { gap: 6, fontSize: 12 } },
-                h(I.check, { size: 12 }), "completado"),
+              it.status === "done" && it.clase !== "Error" && it.guardado == null && h("span", {
+                className: "row", style: { gap: 6, fontSize: 12, color: "var(--ink-500)" },
+              }, h(I.check, { size: 12 }), "analizado"),
+              it.status === "done" && it.clase !== "Error" && it.guardado != null && h("span", {
+                className: "row", style: { gap: 6, fontSize: 12, color: it.guardado ? "var(--green-600)" : "var(--amber-600)" },
+                title: it.guardado ? "Guardado en el historial" : "El resultado no se guardó en el historial",
+              }, h(it.guardado ? I.check : I.alert, { size: 12 }), it.guardado ? "guardado" : "sin guardar"),
+              it.status === "done" && it.clase === "Error" && h("span", { className: "row", style: { gap: 6, fontSize: 12 } },
+                h(I.x, { size: 12 }), "falló"),
             ),
             h("td", null,
               it.clase === "Positivo" && h("span", { className: "badge badge-pos" }, "POSITIVO"),

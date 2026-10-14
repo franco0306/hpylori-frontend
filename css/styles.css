@@ -1259,3 +1259,52 @@ img.brand-mark {
 @media (prefers-reduced-motion: reduce) {
   .flujo-paso.is-en-curso .flujo-num { animation: none; }
 }
+
+/* ── Buscador de pacientes ──────────────────────────────────────────────── */
+.pp { position: relative; }
+.pp-input { height: 40px; padding-right: 34px; }
+.pp-input.is-error { border-color: var(--red-600); box-shadow: 0 0 0 3px var(--red-100); }
+.pp-cargando { position: absolute; right: 12px; top: 50%; margin-top: -6px; }
+.pp-lista {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px);
+  margin: 0; padding: 6px; list-style: none; max-height: 340px; overflow-y: auto;
+  background: var(--white); border: 1px solid var(--ink-200); border-radius: 12px;
+  box-shadow: 0 22px 48px -20px rgba(15, 23, 42, .35);
+}
+:root[data-theme="dark"] .pp-lista { box-shadow: 0 22px 48px -16px rgba(0, 0, 0, .7); }
+.pp-grupo {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-400);
+}
+.pp-grupo-aviso { color: var(--amber-600); }
+.pp-opcion {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  transition: background .12s ease;
+}
+.pp-opcion.is-activa, .pp-opcion:hover { background: var(--blue-50); }
+.pp-avatar {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--blue-50); color: var(--blue-700); border: 1px solid var(--blue-100);
+}
+.pp-avatar.is-pos { background: var(--red-50); color: var(--red-600); border-color: var(--red-100); }
+.pp-avatar.is-nuevo { background: var(--green-50); color: var(--green-600); border-color: var(--green-100); }
+.pp-avatar.is-anonimo { background: var(--ink-100); color: var(--ink-700); border-color: var(--ink-200); }
+.pp-opcion-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pp-codigo { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; color: var(--ink-900); }
+.pp-accion .pp-codigo { font-family: inherit; }
+.pp-meta { font-size: 11.5px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-vacio { padding: 10px; font-size: 12.5px; color: var(--ink-500); }
+.pp-separador { height: 1px; margin: 6px 4px; background: var(--ink-100); }
+.pp-estado { display: flex; align-items: flex-start; gap: 6px; margin-top: 7px; font-size: 12px; line-height: 1.45; }
+.pp-estado svg { flex-shrink: 0; margin-top: 2px; }
+.pp-estado.is-ok { color: var(--green-600); }
+.pp-estado.is-ok strong { font-family: "IBM Plex Mono", monospace; }
+.pp-estado.is-nuevo { color: var(--blue-700); }
+.pp-estado.is-error { color: var(--red-600); font-weight: 500; }
+
+/* Paciente del lote */
+.lote-paciente { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: start; margin-bottom: 20px; }
+.lote-paciente-campo .field-label { display: block; margin-bottom: 6px; }
+@media (max-width: 900px) {
+  .lote-paciente { grid-template-columns: 1fr; }
+}

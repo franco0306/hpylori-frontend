@@ -73,3 +73,32 @@ export async function clearHistory() {
   try { await authFetch(CONFIG.STUDIES_PATH, { method: "DELETE" }); }
   catch { /* ignore */ }
 }
+
+/**
+ * Guarda los resultados de un lote en UNA petición, todos del mismo paciente.
+ * Devuelve los estudios creados en el mismo orden que `resultados`.
+ */
+export async function saveStudiesBatch(resultados, paciente = "") {
+  const res = await authFetch(CONFIG.STUDIES_PATH + "/batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      paciente_id: (paciente || "").trim() || null,
+      estudios: resultados.map((r) => ({
+        clase: r.clase,
+        probabilidad: r.prob,
+        latencia_ms: r.latencia_ms,
+        image_url: r.image_url || null,
+        gradcam_url: r.gradcam_url || null,
+      })),
+    }),
+  });
+  if (!res.ok) {
+    const cuerpo = await res.json().catch(() => ({}));
+    const fallo = new Error("HTTP_" + res.status);
+    fallo.estado = res.status;
+    fallo.detalle = typeof cuerpo.detail === "string" ? cuerpo.detail : null;
+    throw fallo;
+  }
+  return res.json();
+}

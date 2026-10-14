@@ -4,6 +4,7 @@ import { getStudyMedia, hasStudyMedia } from "../sessionCache.js";
 import { getStudies, deleteStudy, clearHistory } from "../history.js";
 import { EmptyState, SkeletonRows } from "../ui/states.jsx";
 import { toast } from "../ui/toast.jsx";
+import { normalizarCodigo } from "../validacion.js";
 
 const React = window.React;
 const { useState, useCallback, useEffect } = React;
@@ -36,19 +37,26 @@ function ConfBar({ prob }) {
   );
 }
 
-// Agrupa estudios por campo `paciente`, ordena: con nombre primero (A-Z), sin nombre al final
+// Agrupa por PACIENTE, no por cómo se escribió el código: el servidor ya une
+// "hc 2026-104" y "HC-2026-104" en un mismo registro (`paciente_ref`). Los
+// estudios antiguos sin referencia se agrupan por su código normalizado.
+// Devuelve [clave, estudios, etiqueta]; código A-Z y los sin paciente al final.
 function groupByPatient(studies) {
   const map = new Map();
   for (const s of studies) {
-    const key = s.paciente && s.paciente.trim() ? s.paciente.trim() : SIN_PACIENTE;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(s);
+    const texto = (s.paciente || "").trim();
+    const key = s.paciente_ref ? "ref:" + s.paciente_ref
+      : texto ? "txt:" + normalizarCodigo(texto) : SIN_PACIENTE;
+    if (!map.has(key)) map.set(key, { estudios: [], etiqueta: texto ? texto.toUpperCase() : SIN_PACIENTE });
+    map.get(key).estudios.push(s);
   }
-  return [...map.entries()].sort(([a], [b]) => {
-    if (a === SIN_PACIENTE) return 1;
-    if (b === SIN_PACIENTE) return -1;
-    return a.localeCompare(b, "es");
-  });
+  return [...map.entries()]
+    .map(([clave, g]) => [clave, g.estudios, g.etiqueta])
+    .sort(([a, , x], [b, , y]) => {
+      if (a === SIN_PACIENTE) return 1;
+      if (b === SIN_PACIENTE) return -1;
+      return x.localeCompare(y, "es", { numeric: true });
+    });
 }
 
 // ── Fila de estudio (reutilizada en ambas vistas) ─────────────────────────────
@@ -144,7 +152,7 @@ function PatientCard({ name, studies, selected, onSelect, onDelete }) {
           color: isAnon ? "var(--ink-400)" : "var(--blue-700)",
           display: "grid", placeItems: "center", fontWeight: 700, fontSize: 15,
         },
-      }, isAnon ? h(I.eye, { size: 16 }) : name.charAt(0).toUpperCase()),
+      }, h(isAnon ? I.eye : I.user, { size: 16 })),
 
       // Info paciente
       h("div", { style: { flex: 1 } },
@@ -371,7 +379,10 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
   const visible = studies.filter((s) => {
     if (needle) {
       const haystack = [s.id, s.fileName, s.paciente].filter(Boolean).join(" ").toLowerCase();
-      if (!haystack.includes(needle)) return false;
+      // "hc2026104" también encuentra "HC-2026-104": se compara normalizado.
+      const claveNeedle = normalizarCodigo(needle);
+      const enCodigo = claveNeedle && normalizarCodigo(s.paciente || "").includes(claveNeedle);
+      if (!haystack.includes(needle) && !enCodigo) return false;
     }
     if (resultF !== "Todos" && s.clase !== resultF) return false;
     if (dateF.days !== Infinity) {
@@ -505,8 +516,8 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
                     h("span", { className: "section-title", style: { marginBottom: 0 } },
                       patientGroups.length + " paciente" + (patientGroups.length !== 1 ? "s" : "")),
                   ),
-                  patientGroups.map(([name, group]) =>
-                    h(PatientCard, { key: name, name, studies: group, selected, onSelect: handleInspeccionar, onDelete: handleDelete }),
+                  patientGroups.map(([clave, group, name]) =>
+                    h(PatientCard, { key: clave, name, studies: group, selected, onSelect: handleInspeccionar, onDelete: handleDelete }),
                   ),
                 ),
           ),

@@ -9,6 +9,8 @@ import { EmptyState, ScanLoader } from "../ui/states.jsx";
 import { AnimatedNumber } from "../ui/cards.jsx";
 import { toast } from "../ui/toast.jsx";
 import { cacheStudyMedia } from "../sessionCache.js";
+import { PatientPicker, codigoPaciente } from "./PatientPicker.jsx";
+import { validarCodigoPaciente } from "../validacion.js";
 
 const React = window.React;
 const { useState, useRef } = React;
@@ -55,7 +57,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const [progress,    setProgress]    = useState(0);
   const [result,      setResult]      = useState(null);
   const [error,       setError]       = useState(null);
-  const [patientName, setPatientName] = useState("");   // nombre/ID del paciente (opcional)
+  const [patientName, setPatientName] = useState("");   // código de historia clínica escrito
+  const [pacienteSel, setPacienteSel] = useState(null);   // paciente elegido en el buscador
   // El guardado en el historial no puede fallar en silencio: el médico tiene
   // que saber que ese análisis no quedó registrado.
   const [historialFallo, setHistorialFallo] = useState(null);   // { estado, detalle }
@@ -88,6 +91,13 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   };
 
   const analyze = async (opts = {}) => {
+    // El código se valida ANTES de gastar una inferencia: si se rechazara al
+    // guardar, el médico vería un resultado que no queda en el historial.
+    const motivoPaciente = patientName.trim() ? validarCodigoPaciente(patientName) : null;
+    if (motivoPaciente) {
+      setError({ k: "paciente", m: motivoPaciente });
+      return;
+    }
     setPhase("loading"); setProgress(0); setError(null); setResult(null); setVista("original");
     setEsperaLarga(false); setReintentando(false);
     const avisoLento = setTimeout(() => setEsperaLarga(true), TIEMPO_AVISO_ESPERA_MS);
@@ -112,12 +122,13 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       // Guardamos el estudio y retenemos su imagen en memoria: el backend solo
       // persiste metadatos, así que esta es la única copia mientras dure la sesión.
       setHistorialFallo(null);
-      saveStudy(res, patientName)
+      const codigo = codigoPaciente(patientName, pacienteSel);
+      saveStudy(res, codigo)
         .then((saved) => {
           if (!saved || !saved.id) return;   // early return
           toast.success("Estudio guardado en el historial",
             (res.clase === "Positivo" ? "Resultado positivo" : "Resultado negativo") +
-            (patientName ? " · " + patientName : ""));
+            (codigo ? " · Paciente " + codigo.toUpperCase() : ""));
           // La caché de sesión es accesoria: si falla no debe hacerse pasar por
           // un fallo de guardado, que es un aviso mucho más grave.
           try {
@@ -143,11 +154,10 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     }
   };
 
-  const handlePatientChange = (e) => setPatientName(e.target.value);
 
   const reset = () => {
     setFile(null); setResult(null); setPhase("idle"); setVista("original");
-    setProgress(0); setError(null); setPatientName(""); setHistorialFallo(null);
+    setProgress(0); setError(null); setPatientName(""); setPacienteSel(null); setHistorialFallo(null);
   };
 
   const downloadReport = async () => {
@@ -159,7 +169,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
     const conf      = result.prob;
     const confLabel = conf >= 0.85 ? "Alta" : conf >= 0.65 ? "Media" : "Baja";
     const colorResult = isPos ? "#dc2626" : "#16a34a";
-    const pacienteId  = patientName.trim();
+    const pacienteId  = codigoPaciente(patientName, pacienteSel).toUpperCase();
     const pacienteRow = pacienteId
       ? `<tr><td>ID Paciente / HC</td><td><strong>${pacienteId}</strong></td></tr>` : "";
 
@@ -413,23 +423,17 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               "ID Paciente / Historia Clínica ",
               h("span", { className: "field-optional" }, "(Opcional)"),
             ),
-            h("div", { className: "input-icon-wrap" },
-              h("span", { className: "input-icon" }, h(I.user, { size: 15 })),
-              h("input", {
-                id: "patient-id",
-                className: "input field-input",
-                type: "text",
-                value: patientName,
-                onChange: handlePatientChange,
-                placeholder: "Ej: HC-2026-104",
-                disabled: cargando,
-                autoComplete: "off",
-                "aria-label": "ID de paciente o historia clínica (opcional)",
-                "aria-describedby": "patient-id-ayuda",
-              }),
-            ),
+            h(PatientPicker, {
+              inputId: "patient-id",
+              value: patientName,
+              onTextChange: (v) => { setPatientName(v); if (error && error.k === "paciente") setError(null); },
+              selected: pacienteSel,
+              onSelect: setPacienteSel,
+              disabled: cargando,
+              describedBy: "patient-id-ayuda",
+            }),
             h("div", { id: "patient-id-ayuda", className: "paciente-ayuda" },
-              h(I.shield, { size: 11 }), "Use el código interno; no escriba nombres ni DNI (Ley N.° 29733)."),
+              h(I.shield, { size: 11 }), "Busque o escriba el código; no use nombres ni DNI (Ley N.° 29733)."),
           ),
 
           !file ? h("div", null,
@@ -527,6 +531,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h("strong", null,
                 error.k === "format" ? "Formato inválido"
                   : error.k === "size" ? "Tamaño excedido"
+                  : error.k === "paciente" ? "Revise el código de paciente"
                   : "Error de inferencia"),
               h("div", { style: { marginTop: 2 } }, error.m),
               error.k === "api" && h("button", {

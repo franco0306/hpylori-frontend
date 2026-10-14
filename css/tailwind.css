@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* El preflight de Tailwind está desactivado para no alterar las pantallas
+   antiguas. Los componentes nuevos llevan la clase `tw`, que restaura solo el
+   reset de bordes que necesitan las utilidades `border-*`. Con `:where()` su
+   especificidad es cero: cualquier clase propia (.card, .alert...) gana. */
+:where(.tw, .tw *, .tw ::before, .tw ::after) {
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--ink-200);
+}

@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { I } from "../icons.js";
 import { ROLES, ROLE_LABEL, getRole } from "../roles.js";
 
@@ -67,6 +68,14 @@ export function Sidebar({ current, onNavigate, user, onLogout, onOpenLegal,
             "aria-current": current === i.id ? "page" : undefined,
             onClick: () => handleNavigate(i.id),
           },
+            // El fondo del elemento activo se desliza de una opción a otra
+            // (layoutId de Framer Motion, como en los Tabs de Aceternity).
+            current === i.id && h(motion.span, {
+              layoutId: "nav-activo",
+              className: "nav-active-pill",
+              transition: { type: "spring", stiffness: 520, damping: 42 },
+              "aria-hidden": true,
+            }),
             h(i.icon, { className: "nav-icon", size: 16, "aria-hidden": true }),
             h("span", null, i.label),
             i.badge && h("span", { className: "nav-badge" }, i.badge),

@@ -1,10 +1,14 @@
+import { motion } from "framer-motion";
 import { I } from "../icons.js";
 import { getStudies } from "../history.js";
 import { getStudyMedia } from "../sessionCache.js";
+import { SpotlightCard, HoverEffect, AnimatedNumber, ShimmerButton } from "../ui/cards.jsx";
 
 const React = window.React;
 const { useState, useEffect, useMemo } = React;
 const h = React.createElement;
+
+const EASE = [0.16, 1, 0.3, 1];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,100 +61,103 @@ function computeStats(studies) {
   };
 }
 
-// ── Gráfico de dona SVG ───────────────────────────────────────────────────────
-function DonutChart({ posRate, pos, neg, total }) {
-  const R = 52, CX = 70, CY = 70, SW = 16;
+// ── Gráfico de dona SVG (se dibuja al montar) ────────────────────────────────
+function DonutChart({ posRate, total }) {
+  const R = 54, CX = 72, CY = 72, SW = 14;
   const CIRC   = 2 * Math.PI * R;
   const posArc = (parseFloat(posRate) / 100) * CIRC;
   const empty  = total === 0;
 
-  return h("svg", { width: 140, height: 140, viewBox: "0 0 140 140" },
-    // Fondo
+  const arco = (color, largo, retraso) => h(motion.circle, {
+    cx: CX, cy: CY, r: R, fill: "none", stroke: color, strokeWidth: SW, strokeLinecap: "butt",
+    transform: `rotate(-90 ${CX} ${CY})`,
+    initial: { strokeDasharray: `0 ${CIRC}` },
+    animate: { strokeDasharray: `${largo} ${CIRC - largo}` },
+    transition: { duration: 1.1, ease: EASE, delay: retraso },
+  });
+
+  return h("svg", { width: 144, height: 144, viewBox: "0 0 144 144", role: "img",
+                    "aria-label": empty ? "Sin estudios" : posRate + "% positivos" },
     h("circle", { cx: CX, cy: CY, r: R, fill: "none", strokeWidth: SW, style: { stroke: "var(--ink-100)" } }),
-    empty
-      ? null
-      : h("g", null,
-          // Negativos (verde)
-          h("circle", {
-            cx: CX, cy: CY, r: R, fill: "none",
-            stroke: "#16A34A", strokeWidth: SW,
-            strokeDasharray: `${CIRC - posArc} ${posArc}`,
-            strokeDashoffset: 0,
-            transform: `rotate(-90 ${CX} ${CY})`,
-            style: { transition: "stroke-dasharray 0.6s ease" },
-          }),
-          // Positivos (rojo) — encima
-          h("circle", {
-            cx: CX, cy: CY, r: R, fill: "none",
-            stroke: "#DC2626", strokeWidth: SW,
-            strokeDasharray: `${posArc} ${CIRC - posArc}`,
-            strokeDashoffset: 0,
-            transform: `rotate(-90 ${CX} ${CY})`,
-            style: { transition: "stroke-dasharray 0.6s ease" },
-          }),
-        ),
-    // Centro: porcentaje positivos
+    !empty && h("g", null,
+      arco("var(--green-600)", CIRC, 0),
+      arco("var(--red-600)", posArc, 0.25),
+    ),
     h("text", {
-      x: CX, y: CY - 6,
-      textAnchor: "middle", dominantBaseline: "middle",
-      fontSize: 20, fontWeight: 700,
-      fontFamily: "IBM Plex Mono, monospace",
-      style: { fill: empty ? "var(--ink-400)" : "#DC2626" },
+      x: CX, y: CY - 3, textAnchor: "middle", dominantBaseline: "middle",
+      fontSize: 22, fontWeight: 700, fontFamily: "IBM Plex Mono, monospace",
+      style: { fill: empty ? "var(--ink-400)" : "var(--ink-900)" },
     }, empty ? "—" : posRate + "%"),
     h("text", {
-      x: CX, y: CY + 14,
-      textAnchor: "middle",
-      fontSize: 9, fontFamily: "IBM Plex Mono, monospace",
-      style: { fill: "var(--ink-500)" },
-    }, "positivos"),
+      x: CX, y: CY + 17, textAnchor: "middle", fontSize: 9.5, fontFamily: "Inter, sans-serif",
+      style: { fill: "var(--ink-500)", letterSpacing: ".06em" },
+    }, "POSITIVOS"),
   );
 }
 
-// ── KPI con barra de progreso ─────────────────────────────────────────────────
+// ── KPI ──────────────────────────────────────────────────────────────────────
 // Exportado: el Panel de Administración usa la misma tarjeta para sus métricas
 // de gobernanza, de modo que ambas pantallas comparten aspecto y tokens.
 // `permitirDesborde` deja salir contenido flotante (un tooltip, por ejemplo)
-// fuera de los límites de la tarjeta. La barra de acento superior lleva su
-// propio border-radius, así que recortar no le hace falta.
-export function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor,
+// fuera de los límites de la tarjeta.
+export function KpiCard({ label, value, sub, subColor, barPct, barColor, valueColor, icon,
                           permitirDesborde = false }) {
-  return h("div", {
-    className: "kpi",
-    style: { position: "relative", overflow: permitirDesborde ? "visible" : "hidden" },
+  const Icono = icon ? I[icon] : null;
+  return h(SpotlightCard, {
+    className: "kpi kpi-v2" + (permitirDesborde ? " overflow-visible" : ""),
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.45, ease: EASE },
   },
-    // Barra de acento superior
-    h("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: barColor, borderRadius: "12px 12px 0 0" } }),
-    h("div", { className: "kpi-label" }, label),
-    h("div", { className: "kpi-value", style: { color: valueColor || barColor } }, value),
+    h("div", { className: "kpi-v2-head" },
+      h("div", { className: "kpi-label" }, label),
+      Icono && h("span", { className: "kpi-v2-icon", style: { color: barColor } }, h(Icono, { size: 15 })),
+    ),
+    h("div", { className: "kpi-value", style: { color: valueColor || "var(--ink-900)" } }, value),
     h("div", { className: "kpi-delta", style: { color: subColor } }, sub),
-    barPct !== undefined && h("div", { style: { marginTop: 10, height: 3, background: "var(--ink-100)", borderRadius: 999 } },
-      h("div", { style: { width: Math.min(100, barPct) + "%", height: "100%", background: barColor, borderRadius: 999, transition: "width 0.6s ease" } }),
+    barPct !== undefined && h("div", { className: "kpi-v2-track" },
+      h(motion.div, {
+        className: "kpi-v2-bar",
+        style: { background: barColor },
+        initial: { width: 0 },
+        animate: { width: Math.max(0, Math.min(100, barPct || 0)) + "%" },
+        transition: { duration: 1, ease: EASE, delay: 0.2 },
+      }),
     ),
   );
 }
 
+const ACCIONES = [
+  { id: "single",   icon: "upload",  color: "var(--blue-700)",  bg: "var(--blue-50)",
+    title: "Análisis individual", description: "Sube una imagen endoscópica y obtén el resultado en segundos." },
+  { id: "batch",    icon: "layers",  color: "#7C3AED",          bg: "rgba(124,58,237,.10)",
+    title: "Procesamiento por lote", description: "Analiza varias imágenes de un mismo estudio de una vez." },
+  { id: "history",  icon: "history", color: "var(--amber-600)", bg: "var(--amber-50)",
+    title: "Historial", description: "Consulta casos anteriores por paciente y fecha." },
+  { id: "settings", icon: "cog",     color: "var(--ink-700)",   bg: "var(--ink-100)",
+    title: "Configuración", description: "Sensibilidad del análisis, apariencia y privacidad." },
+];
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export function Dashboard({ onNavigate, onViewHeatmap, user }) {
   const [studies, setStudies] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-    getStudies().then((data) => { if (mounted) setStudies(data); });
+    getStudies().then((data) => { if (mounted) { setStudies(data); setCargando(false); } });
     return () => { mounted = false; };
   }, []);
 
   const stats   = useMemo(() => computeStats(studies), [studies]);
   const recent  = useMemo(() => studies.slice(0, 6), [studies]);
+  const nombre  = (user && (user.full_name || user.email)) || "";
+  const hayDatos = stats.total > 0;
 
-  const handleOpenHistory = () => onNavigate("history");
-
-  // Abre la vista Grad-CAM del estudio. El historial solo conserva la
-  // miniatura, así que la pantalla avisa si el mapa ya no está disponible.
+  // Abre la vista Grad-CAM del estudio. Si se analizó en esta sesión se
+  // conserva su mapa; si no, la pantalla Grad-CAM lo advierte.
   const handleOpenCase = (study) => {
     if (!onViewHeatmap) return onNavigate("heatmap");   // early return
-
-    // Si el estudio se analizó en esta sesión conservamos su imagen y su mapa;
-    // si no, la pantalla Grad-CAM lo advierte en lugar de mostrar un panel roto.
     const cached = getStudyMedia(study.id);
 
     onViewHeatmap(
@@ -163,177 +170,169 @@ export function Dashboard({ onNavigate, onViewHeatmap, user }) {
         timestamp:   study.timestamp,
       },
       {
-        src:  (cached && cached.src) || study.thumbnail || null,
+        src:  (cached && cached.src) || study.image_url || study.thumbnail || null,
         name: buildCaseCode(study),
       },
     );
   };
 
-  const ACTIONS = [
-    { k: "single",  icon: "upload",  color: "var(--blue-700)",  bg: "var(--blue-50)",  title: "Análisis individual" },
-    { k: "heatmap", icon: "heat",    color: "var(--red-600)",   bg: "var(--red-50)",   title: "Grad-CAM" },
-    { k: "history", icon: "history", color: "var(--amber-600)", bg: "var(--amber-50)", title: "Historial" },
-    { k: "settings",icon: "cog",     color: "var(--ink-700)",   bg: "var(--ink-50)",   title: "Configuración" },
-  ];
-
-  return h("div", { className: "content" },
+  return h("div", { className: "content dash" },
 
     // ── Cabecera ──────────────────────────────────────────────────────────────
     h("div", { className: "page-header" },
       h("div", null,
-        h("h1", { className: "page-title" },
-          getGreeting() + ", " + ((user && (user.full_name || user.email)) || "")),
-        h("div", { className: "page-sub" },
-          "Análisis asistido de mucosa gástrica en tiempo real · " + getFecha(),
-        ),
+        h("div", { className: "dash-fecha" }, getFecha()),
+        h("h1", { className: "page-title dash-saludo" },
+          getGreeting() + ", ",
+          h("span", { className: "dash-nombre" }, nombre)),
+        h("div", { className: "page-sub" }, "Análisis asistido de mucosa gástrica en tiempo real"),
       ),
-      h("button", { className: "btn btn-primary", onClick: () => onNavigate("single") },
+      h(ShimmerButton, { onClick: () => onNavigate("single") },
         h(I.plus, { size: 14 }), "Nuevo análisis"),
     ),
 
     // ── KPIs ─────────────────────────────────────────────────────────────────
     h("div", { className: "kpi-grid", style: { marginBottom: 20 } },
       h(KpiCard, {
-        label: "Total de estudios", value: stats.total,
+        label: "Total de estudios", icon: "scan",
+        value: h(AnimatedNumber, { value: stats.total }),
         sub: stats.today + " realizados hoy",
         subColor: "var(--ink-500)",
-        barColor: "#3B82F6", barPct: Math.min(100, stats.total / 2),
+        barColor: "var(--blue-600)", barPct: Math.min(100, stats.total / 2),
       }),
       h(KpiCard, {
-        label: "H. pylori positivo",
-        value: stats.total > 0 ? stats.posRate + "%" : "—",
+        label: "H. pylori positivo", icon: "alert",
+        value: hayDatos ? h(AnimatedNumber, { value: stats.posRate, decimals: 1, suffix: "%" }) : "—",
         sub: stats.pos + " casos positivos",
-        subColor: "#DC2626",
-        barColor: "#DC2626",
-        barPct: parseFloat(stats.posRate),
+        subColor: "var(--red-600)", valueColor: "var(--red-600)",
+        barColor: "var(--red-600)", barPct: parseFloat(stats.posRate),
       }),
       h(KpiCard, {
-        label: "H. pylori negativo",
-        value: stats.total > 0 ? stats.negRate + "%" : "—",
+        label: "H. pylori negativo", icon: "check",
+        value: hayDatos ? h(AnimatedNumber, { value: stats.negRate, decimals: 1, suffix: "%" }) : "—",
         sub: stats.neg + " casos negativos",
-        subColor: "#15803D",
-        barColor: "#16A34A",
-        barPct: parseFloat(stats.negRate),
+        subColor: "var(--green-600)", valueColor: "var(--green-600)",
+        barColor: "var(--green-600)", barPct: parseFloat(stats.negRate),
       }),
       h(KpiCard, {
-        label: "Latencia media",
-        value: stats.total > 0
-          ? h("span", null, stats.avgLat, h("small", null, " ms"))
+        label: "Latencia media", icon: "bars",
+        value: hayDatos
+          ? h("span", null, h(AnimatedNumber, { value: stats.avgLat }), h("small", null, " ms"))
           : "—",
         sub: "tiempo medio de respuesta",
-        subColor: "var(--ink-500)",
-        valueColor: "var(--blue-700)",
+        subColor: "var(--ink-500)", valueColor: "var(--blue-700)",
         barColor: "var(--blue-700)",
         barPct: Math.max(0, 100 - (parseInt(stats.avgLat || 0) / 20)),
       }),
     ),
 
-    // ── Sección central: dona + estudios recientes ────────────────────────────
-    h("div", { style: { display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, marginBottom: 16 } },
+    // ── Distribución + estudios recientes (bento) ─────────────────────────────
+    h("div", { className: "dash-bento" },
 
-      // Dona
-      h("div", { className: "card card-pad", style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 } },
-        h("div", { className: "section-title", style: { alignSelf: "flex-start", marginBottom: 0 } }, "Distribución"),
-        h(DonutChart, { posRate: stats.posRate, pos: stats.pos, neg: stats.neg, total: stats.total }),
-        h("div", { style: { width: "100%", display: "flex", flexDirection: "column", gap: 8 } },
-          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12.5 } },
-            h("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
-              h("div", { style: { width: 10, height: 10, borderRadius: 2, background: "#DC2626" } }),
-              h("span", { style: { color: "var(--ink-700)" } }, "H. pylori positivo"),
-            ),
-            h("span", { style: { fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, color: "#DC2626" } },
-              stats.pos + " (" + stats.posRate + "%)"),
-          ),
-          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12.5 } },
-            h("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
-              h("div", { style: { width: 10, height: 10, borderRadius: 2, background: "#16A34A" } }),
-              h("span", { style: { color: "var(--ink-700)" } }, "H. pylori negativo"),
-            ),
-            h("span", { style: { fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, color: "#16A34A" } },
-              stats.neg + " (" + stats.negRate + "%)"),
-          ),
-          h("div", { style: { borderTop: "1px solid var(--ink-100)", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 } },
-            h("span", { style: { color: "var(--ink-400)" } }, "Total"),
-            h("span", { style: { fontFamily: "IBM Plex Mono, monospace", fontWeight: 600 } }, stats.total),
+      h(SpotlightCard, {
+        className: "card dash-dist",
+        initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.45, ease: EASE, delay: 0.1 },
+      },
+        h("div", { className: "section-title" }, "Distribución de resultados"),
+        h("div", { className: "dash-dist-body" },
+          h(DonutChart, { posRate: stats.posRate, total: stats.total }),
+          h("div", { className: "dash-leyenda" },
+            [["Positivo", stats.pos, stats.posRate, "var(--red-600)"],
+             ["Negativo", stats.neg, stats.negRate, "var(--green-600)"]].map(([txt, n, pct, color]) =>
+              h("div", { key: txt, className: "dash-leyenda-fila" },
+                h("span", { className: "dash-leyenda-punto", style: { background: color } }),
+                h("span", { className: "dash-leyenda-txt" }, "H. pylori " + txt.toLowerCase()),
+                h("span", { className: "mono dash-leyenda-num", style: { color } }, n + " · " + pct + "%"),
+              )),
+            h("div", { className: "dash-leyenda-total" },
+              h("span", null, "Total analizado"),
+              h("span", { className: "mono" }, stats.total)),
           ),
         ),
       ),
 
-      // Estudios recientes
-      h("div", { className: "card" },
+      h(motion.div, {
+        className: "card dash-recientes",
+        initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.45, ease: EASE, delay: 0.15 },
+      },
         h("div", { className: "card-head" },
-          h("h3", { className: "card-title" }, "Estudios recientes"),
+          h("div", null,
+            h("h3", { className: "card-title" }, "Estudios recientes"),
+            h("div", { className: "card-sub" }, "Pulse un caso para abrir su visualización"),
+          ),
           h("button", {
-            className: "btn btn-ghost",
-            style: { fontSize: 12 },
+            className: "btn btn-ghost", style: { fontSize: 12 },
             onClick: () => onNavigate("history"),
             "aria-label": "Ver todo el historial de estudios",
-          }, "Ver todos →"),
+          }, "Ver todos", h(I.chev, { size: 12 })),
         ),
-        recent.length === 0
-          ? h("div", { style: { padding: "32px 20px", textAlign: "center", color: "var(--ink-400)", fontSize: 13 } },
-              "Aún no hay estudios. Realiza tu primer análisis.")
-          : h("div", null,
-              recent.map((study) => {
-                const isPos    = study.clase === "Positivo";
-                const caseCode = buildCaseCode(study);
-                const paciente = (study.paciente || "").trim();
+        cargando
+          ? h("div", { className: "dash-skeleton" },
+              [0, 1, 2, 3].map((i) => h("div", { key: i, className: "dash-skeleton-fila" })))
+          : recent.length === 0
+            ? h("div", { className: "dash-vacio" },
+                h("span", { className: "dash-vacio-icono" }, h(I.scan, { size: 22 })),
+                h("div", { className: "dash-vacio-titulo" }, "Aún no hay estudios"),
+                h("div", { className: "dash-vacio-sub" }, "Realice su primer análisis para verlo aquí."),
+                h("button", { className: "btn btn-secondary", onClick: () => onNavigate("single") },
+                  h(I.upload, { size: 14 }), "Analizar una imagen"))
+            : h("div", null,
+                recent.map((study, i) => {
+                  const isPos    = study.clase === "Positivo";
+                  const caseCode = buildCaseCode(study);
+                  const paciente = (study.paciente || "").trim();
+                  const media    = getStudyMedia(study.id);
+                  const src      = (media && media.src) || study.image_url || null;
 
-                return h("button", {
-                  key: study.id,
-                  type: "button",
-                  className: "study-row",
-                  onClick: () => handleOpenCase(study),
-                  "aria-label": "Abrir Grad-CAM de " + caseCode + " · " + (isPos ? "positivo" : "negativo"),
-                },
-                  study.thumbnail
-                    ? h("img", { className: "study-thumb", src: study.thumbnail, alt: "" })
-                    : h("div", {
-                        className: "study-thumb study-thumb-empty",
-                        role: "img",
-                        "aria-label": "Estudio sin imagen conservada",
-                        title: "La imagen no se conserva tras cerrar la sesión",
-                      }, h(I.scan, { size: 16, "aria-hidden": true })),
+                  return h(motion.button, {
+                    key: study.id,
+                    type: "button",
+                    className: "study-row",
+                    onClick: () => handleOpenCase(study),
+                    initial: { opacity: 0, x: -8 },
+                    animate: { opacity: 1, x: 0 },
+                    transition: { duration: 0.35, ease: EASE, delay: 0.2 + i * 0.05 },
+                    "aria-label": "Abrir Grad-CAM de " + caseCode + " · " + (isPos ? "positivo" : "negativo"),
+                  },
+                    src
+                      ? h("img", { className: "study-thumb", src, alt: "", loading: "lazy" })
+                      : h("div", {
+                          className: "study-thumb study-thumb-empty",
+                          role: "img",
+                          "aria-label": "Estudio sin imagen conservada",
+                          title: "La imagen no se conserva tras cerrar la sesión",
+                        }, h(I.scan, { size: 16, "aria-hidden": true })),
 
-                  h("div", { className: "study-meta" },
-                    h("div", { className: "study-code" }, caseCode),
-                    h("div", { className: "study-sub" },
-                      paciente ? paciente + " · " + fmtTime(study.timestamp) : fmtTime(study.timestamp)),
-                  ),
+                    h("div", { className: "study-meta" },
+                      h("div", { className: "study-code" }, caseCode),
+                      h("div", { className: "study-sub" },
+                        paciente ? paciente + " · " + fmtTime(study.timestamp) : fmtTime(study.timestamp)),
+                    ),
 
-                  h("div", { className: "study-result" },
-                    h("span", { className: "badge " + (isPos ? "badge-pos" : "badge-neg") },
-                      isPos ? "POSITIVO" : "NEGATIVO"),
-                    h("div", {
-                      className: "study-prob",
-                      style: { color: isPos ? "var(--red-600)" : "var(--green-600)" },
-                    }, (study.prob * 100).toFixed(1) + "%"),
-                  ),
-                );
-              }),
-            ),
+                    h("div", { className: "study-result" },
+                      h("span", { className: "badge " + (isPos ? "badge-pos" : "badge-neg") },
+                        isPos ? "POSITIVO" : "NEGATIVO"),
+                      h("div", {
+                        className: "study-prob",
+                        style: { color: isPos ? "var(--red-600)" : "var(--green-600)" },
+                      }, (study.prob * 100).toFixed(1) + "%"),
+                    ),
+                  );
+                }),
+              ),
       ),
     ),
 
-    // ── Accesos rápidos ───────────────────────────────────────────────────────
-    h("div", { style: { display: "grid", gridTemplateColumns: "1fr", gap: 16 } },
-      h("div", { className: "card card-pad" },
-        h("div", { className: "section-title" }, "Accesos rápidos"),
-        h("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } },
-          ACTIONS.map(({ k, icon, color, bg, title }) =>
-            h("button", {
-              key: k, className: "btn btn-secondary",
-              onClick: () => onNavigate(k),
-              style: { flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 6px", height: "auto" },
-            },
-              h("div", { style: { width: 32, height: 32, borderRadius: 8, background: bg, color, display: "grid", placeItems: "center" } },
-                h(I[icon], { size: 16 })),
-              h("span", { style: { fontSize: 10.5, fontWeight: 600, textAlign: "center", lineHeight: 1.2 } }, title),
-            )
-          ),
-        ),
-      ),
-
+    // ── Accesos rápidos (Aceternity · Card Hover Effect) ─────────────────────
+    h("div", { className: "dash-accesos" },
+      h("div", { className: "section-title" }, "Accesos rápidos"),
+      h(HoverEffect, {
+        className: "dash-accesos-grid",
+        onSelect: onNavigate,
+        items: ACCIONES.map((a) => ({ ...a, icon: h(I[a.icon], { size: 18 }) })),
+      }),
     ),
   );
 }

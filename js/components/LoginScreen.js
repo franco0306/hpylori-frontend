@@ -1,6 +1,8 @@
 import { I } from "../icons.js";
 import { login, mfaSetup, mfaVerify } from "../auth.js";
-import { AuthHero } from "./AuthHero.js";
+import { AuthHero } from "./AuthHero.jsx";
+import { AuthCard, AuthError } from "./AuthCard.jsx";
+import { Input, Label, GradientButton } from "../ui/input.jsx";
 
 const React = window.React;
 const { useState, useEffect, useRef } = React;
@@ -15,7 +17,7 @@ function PasoCodigo({ alta, datosAlta, cargandoAlta, codigo, onCodigo, error, lo
   const inputRef = useRef(null);
   useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, [datosAlta]);
 
-  return h("form", { onSubmit, style: { display: "flex", flexDirection: "column", gap: 14 } },
+  return h("form", { onSubmit, className: "flex flex-col gap-4" },
     alta && h("div", { className: "mfa-alta" },
       h("ol", { className: "mfa-pasos" },
         h("li", null, "Instale ", h("strong", null, "Google Authenticator"), " o Microsoft Authenticator en su teléfono."),
@@ -35,22 +37,19 @@ function PasoCodigo({ alta, datosAlta, cargandoAlta, codigo, onCodigo, error, lo
           ),
     ),
     h("div", null,
-      h("label", { className: "auth-label", htmlFor: "mfa-codigo" }, "Código de verificación"),
-      h("div", { className: "input-icon-wrap" },
-        h("span", { className: "input-icon" }, h(I.shield, { size: 15 })),
-        h("input", {
-          id: "mfa-codigo", ref: inputRef, className: "input mfa-input",
-          inputMode: "numeric", autoComplete: "one-time-code", pattern: "[0-9 ]{6,7}",
-          maxLength: 7, required: true, placeholder: "123 456",
-          value: codigo, onChange: (e) => onCodigo(e.target.value),
-        }),
-      ),
+      h(Label, { htmlFor: "mfa-codigo" }, "Código de verificación"),
+      h(Input, {
+        id: "mfa-codigo", ref: inputRef, icon: I.shield, className: "mfa-input",
+        inputMode: "numeric", autoComplete: "one-time-code", pattern: "[0-9 ]{6,7}",
+        maxLength: 7, required: true, placeholder: "123 456",
+        value: codigo, onChange: (e) => onCodigo(e.target.value),
+      }),
     ),
-    error && h("div", { className: "alert alert-error" }, h(I.alert, { size: 16 }), h("div", null, error)),
-    h("button", { className: "btn btn-primary", type: "submit", disabled: loading || (alta && !datosAlta),
-                  style: { width: "100%" } },
-      loading ? "Verificando…" : alta ? "Activar y entrar" : "Verificar"),
-    h("div", { style: { textAlign: "center", fontSize: 13 } },
+    error && h(AuthError, null, error),
+    h(GradientButton, { type: "submit", disabled: loading || (alta && !datosAlta) },
+      loading ? "Verificando…" : alta ? "Activar y entrar" : "Verificar",
+      !loading && h(I.chev, { size: 14 })),
+    h("div", { className: "text-center text-[13px]" },
       h("span", { className: "linklike", onClick: onVolver }, "Volver al inicio de sesión")),
   );
 }
@@ -119,52 +118,37 @@ export function LoginScreen({ onSuccess, onGoToRegister }) {
   return h("div", { className: "auth-page" },
     h(AuthHero, {
       title: "Bienvenido de nuevo",
-      lead: "Inicia sesión para continuar con tus análisis, historial de estudios y configuración guardada.",
+      lead: "Inicia sesión para continuar con tus análisis, tu historial de estudios y tu configuración guardada.",
     }),
-    h("div", { className: "auth-form-side" },
-      h("div", { className: "card card-pad auth-card" },
-        h("div", { className: "auth-brand" },
-          h("div", { className: "brand-mark" }, "Hp"),
-          h("div", null,
-            h("div", { className: "brand-name" }, "EndoScan AI"),
-            h("div", { className: "brand-sub" }, "Detección de H. pylori"),
-          ),
-        ),
-        h("h1", { className: "page-title", style: { fontSize: 20, marginBottom: 4 } }, titulo),
-        h("p", { className: "muted", style: { marginTop: 0, marginBottom: 20, fontSize: 13 } }, subtitulo),
-
-        mfa
-          ? h(PasoCodigo, {
-              alta: mfa.setup, datosAlta, cargandoAlta, codigo, onCodigo: setCodigo,
-              error, loading, onSubmit: handleCodigo, onVolver: handleVolver,
-            })
-          : h("form", { onSubmit: handleSubmit, style: { display: "flex", flexDirection: "column", gap: 14 } },
-              h("div", null,
-                h("label", { className: "auth-label" }, "Correo electrónico"),
-                h("div", { className: "input-icon-wrap" },
-                  h("span", { className: "input-icon" }, h(I.mail, { size: 15 })),
-                  h("input", { className: "input", type: "email", required: true,
-                    value: email, onChange: (e) => setEmail(e.target.value), placeholder: "doctor@hospital.com" }),
-                ),
-              ),
-              h("div", null,
-                h("label", { className: "auth-label" }, "Contraseña"),
-                h("div", { className: "input-icon-wrap" },
-                  h("span", { className: "input-icon" }, h(I.lock, { size: 15 })),
-                  h("input", { className: "input", type: "password", required: true,
-                    value: password, onChange: (e) => setPassword(e.target.value), placeholder: "••••••••" }),
-                ),
-              ),
-              error && h("div", { className: "alert alert-error" }, h(I.alert, { size: 16 }), h("div", null, error)),
-              h("button", { className: "btn btn-primary", type: "submit", disabled: loading, style: { width: "100%" } },
-                loading ? "Ingresando…" : "Ingresar"),
+    h(AuthCard, {
+      key: mfa ? "mfa" : "login",
+      titulo, subtitulo,
+      pie: !mfa && h("span", null, "¿No tienes cuenta? ",
+        h("span", { className: "linklike", onClick: onGoToRegister }, "Regístrate")),
+    },
+      mfa
+        ? h(PasoCodigo, {
+            alta: mfa.setup, datosAlta, cargandoAlta, codigo, onCodigo: setCodigo,
+            error, loading, onSubmit: handleCodigo, onVolver: handleVolver,
+          })
+        : h("form", { onSubmit: handleSubmit, className: "flex flex-col gap-4" },
+            h("div", null,
+              h(Label, { htmlFor: "login-email" }, "Correo electrónico"),
+              h(Input, { id: "login-email", type: "email", required: true, icon: I.mail,
+                autoComplete: "username",
+                value: email, onChange: (e) => setEmail(e.target.value), placeholder: "doctor@hospital.com" }),
             ),
-
-        !mfa && h("div", { style: { textAlign: "center", marginTop: 18, fontSize: 13 } },
-          "¿No tienes cuenta? ",
-          h("span", { className: "linklike", onClick: onGoToRegister }, "Regístrate"),
-        ),
-      ),
+            h("div", null,
+              h(Label, { htmlFor: "login-clave" }, "Contraseña"),
+              h(Input, { id: "login-clave", type: "password", required: true, icon: I.lock,
+                autoComplete: "current-password",
+                value: password, onChange: (e) => setPassword(e.target.value), placeholder: "••••••••" }),
+            ),
+            error && h(AuthError, null, error),
+            h(GradientButton, { type: "submit", disabled: loading, className: "mt-1" },
+              loading ? "Ingresando…" : "Ingresar",
+              !loading && h(I.chev, { size: 14 })),
+          ),
     ),
   );
 }

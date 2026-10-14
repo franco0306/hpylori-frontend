@@ -1,5 +1,7 @@
 // Punto de entrada de la SPA. Monta React en #root.
 
+import { AnimatePresence, motion } from "framer-motion";
+
 import { findModel }           from "./models.js";
 import { CLINICAL_MODEL_ID }   from "./api.js";
 import { Sidebar }             from "./components/Sidebar.js";
@@ -265,7 +267,19 @@ function App() {
         crumbs, user, theme, onToggleTheme: toggleTheme,
         menuAbierto, onToggleMenu: alternarMenu,
       }),
-      h("div", { "data-screen-label": screen, className: "screen" }, render()),
+      h("div", { "data-screen-label": screen, className: "screen" },
+        // Cambio de pantalla con un desvanecido corto: orienta sin hacer esperar.
+        h(AnimatePresence, { mode: "wait", initial: false },
+          h(motion.div, {
+            key: screen,
+            className: "screen-anim",
+            initial: { opacity: 0, y: 8 },
+            animate: { opacity: 1, y: 0 },
+            exit: { opacity: 0, y: -4 },
+            transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+          }, render()),
+        ),
+      ),
     ),
     h(LegalModal, {
       open: legalOpen,

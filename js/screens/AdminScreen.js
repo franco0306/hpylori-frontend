@@ -10,6 +10,7 @@
 import { I } from "../icons.js";
 import { CONFIG } from "../config.js";
 import { authFetch } from "../auth.js";
+import { EmptyState, SkeletonTable } from "../ui/states.jsx";
 import { fmtLatencia } from "../format.js";
 import { KpiCard } from "../components/Dashboard.js";
 import { ESTADOS, useServiceStatus } from "../health.js";
@@ -1016,14 +1017,11 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
 
   const cuerpo = () => {
     if (cargando) {
-      return h("div", { className: "admin-vacio", role: "status" },
-        h("div", { className: "row", style: { gap: 10, justifyContent: "center" } },
-          h("span", { className: "spinner-sm" }),
-          h("span", null, "Cargando cuentas…"),
-        ),
+      return h("div", { role: "status" },
+        h(SkeletonTable, { rows: 4, cols: 6, label: "Cargando cuentas" }),
         // El Space del backend duerme tras un periodo sin uso y tarda cerca de
         // un minuto en volver. Decirlo evita que parezca que se ha colgado.
-        lento && h("div", { style: { marginTop: 10, fontSize: 12, color: "var(--ink-500)" } },
+        lento && h("div", { style: { margin: "4px 20px 16px", fontSize: 12, color: "var(--ink-500)" } },
           "El servidor está tardando más de lo normal. Si el servicio estuvo ",
           "inactivo, puede estar reactivándose."),
       );
@@ -1042,7 +1040,9 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
       );
     }
     if (!usuarios.length) {
-      return h("div", { className: "admin-vacio" }, "No hay cuentas registradas.");
+      return h(EmptyState, { icon: I.user, tone: "neutral",
+        title: "No hay cuentas registradas",
+        description: "Las cuentas aparecerán aquí cuando los médicos se registren en el sistema." });
     }
 
     return h("table", { className: "table admin-users" },

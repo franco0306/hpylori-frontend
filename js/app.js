@@ -1,6 +1,7 @@
 // Punto de entrada de la SPA. Monta React en #root.
 
 import { AnimatePresence, motion } from "framer-motion";
+import { Toaster, toast } from "./ui/toast.jsx";
 
 import { findModel }           from "./models.js";
 import { CLINICAL_MODEL_ID }   from "./api.js";
@@ -167,6 +168,8 @@ function App() {
   };
 
   const handleAuthSuccess = (loggedInUser) => {
+    const nombre = loggedInUser && (loggedInUser.full_name || loggedInUser.email);
+    toast.success("Sesión iniciada", nombre ? "Bienvenido, " + nombre + "." : undefined);
     setUser(loggedInUser);
     setAuthed(true);
     setScreen("single");
@@ -183,9 +186,12 @@ function App() {
   };
 
   if (!authed) {
-    return authView === "register"
-      ? h(RegisterScreen, { onSuccess: handleAuthSuccess, onGoToLogin: () => setAuthView("login") })
-      : h(LoginScreen,    { onSuccess: handleAuthSuccess, onGoToRegister: () => setAuthView("register") });
+    return h(React.Fragment, null,
+      authView === "register"
+        ? h(RegisterScreen, { onSuccess: handleAuthSuccess, onGoToLogin: () => setAuthView("login") })
+        : h(LoginScreen,    { onSuccess: handleAuthSuccess, onGoToRegister: () => setAuthView("register") }),
+      h(Toaster, null),
+    );
   }
 
   const crumbs = ({
@@ -207,7 +213,7 @@ function App() {
       case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap, threshold: prefs.threshold });
       case "heatmap":   return h(HeatmapScreen,  { heatmapResult, xaiPalette, onNewAnalysis: () => setScreen("single") });
       case "batch":     return h(BatchScreen,    { model, threshold: prefs.threshold });
-      case "history":   return h(HistoryScreen,  { onViewHeatmap: viewHeatmap });
+      case "history":   return h(HistoryScreen,  { onViewHeatmap: viewHeatmap, onNavigate: setScreen });
       case "settings":  return h(SettingsScreen, {
         prefs, onSave: handleSavePrefs, theme, onToggleTheme: toggleTheme,
         xaiPalette, onChangePalette: handleChangePalette,
@@ -281,6 +287,7 @@ function App() {
         ),
       ),
     ),
+    h(Toaster, null),
     h(LegalModal, {
       open: legalOpen,
       user,

@@ -2,6 +2,8 @@ import { I } from "../icons.js";
 import { fmtLatencia } from "../format.js";
 import { getStudyMedia, hasStudyMedia } from "../sessionCache.js";
 import { getStudies, deleteStudy, clearHistory } from "../history.js";
+import { EmptyState, SkeletonRows } from "../ui/states.jsx";
+import { toast } from "../ui/toast.jsx";
 
 const React = window.React;
 const { useState, useCallback, useEffect } = React;
@@ -301,7 +303,7 @@ function ModalComparativo({ estudio, onCerrar }) {
 }
 
 
-export function HistoryScreen({ onViewHeatmap }) {
+export function HistoryScreen({ onViewHeatmap, onNavigate }) {
   const [studies,      setStudies]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
@@ -331,7 +333,11 @@ export function HistoryScreen({ onViewHeatmap }) {
     setSelected((sel) => sel ? fresh.find((s) => s.id === sel.id) || null : null);
   }, []);
 
-  const handleDelete = async (id) => { await deleteStudy(id); refresh(); };
+  const handleDelete = async (id) => {
+    await deleteStudy(id);
+    toast.success("Estudio eliminado", "Se borró del historial junto con sus imágenes archivadas.");
+    refresh();
+  };
 
   // Abre el Grad-CAM reutilizando la media retenida en esta sesión.
   const handleOpenHeatmap = (study) => {
@@ -349,7 +355,13 @@ export function HistoryScreen({ onViewHeatmap }) {
       { src: media.src, name: media.name || study.fileName },
     );
   };
-  const handleClear  = async () => { await clearHistory(); setStudies([]); setSelected(null); setConfirmClear(false); };
+  const handleClear  = async () => {
+    const total = studies.length;
+    await clearHistory();
+    setStudies([]); setSelected(null); setConfirmClear(false);
+    toast.success("Historial vaciado", total + " estudio" + (total === 1 ? "" : "s") + " eliminado" + (total === 1 ? "" : "s") + ".");
+  };
+  const handleLimpiarFiltros = () => { setResultF("Todos"); setDateF(DATE_FILTERS[0]); setQuery(""); };
 
   const handleSearch = (e) => setQuery(e.target.value);
 
@@ -452,19 +464,24 @@ export function HistoryScreen({ onViewHeatmap }) {
 
     // ── Cuerpo ────────────────────────────────────────────────────────────────
     loading
-      ? h("div", { className: "card card-pad", style: { textAlign: "center", padding: 60 } },
-          h("div", { className: "spinner" }),
-          h("div", { className: "muted", style: { marginTop: 12 } }, "Cargando historial…"),
-        )
+      ? h("div", { className: "card" }, h(SkeletonRows, { rows: 6, label: "Cargando historial" }))
     : visible.length === 0
-      ? h("div", { className: "card card-pad", style: { textAlign: "center", padding: 60 } },
-          h(I.history, { size: 32, style: { color: "var(--ink-300)", marginBottom: 12 } }),
-          h("div", { style: { fontWeight: 600, color: "var(--ink-500)" } },
-            studies.length === 0 ? "Sin estudios aún" : "Sin resultados para estos filtros"),
-          h("div", { style: { fontSize: 12.5, color: "var(--ink-400)", marginTop: 4 } },
-            studies.length === 0
-              ? "Los análisis realizados desde Análisis individual aparecerán aquí automáticamente."
-              : "Prueba cambiando el período o el resultado."),
+      ? h("div", { className: "card" },
+          studies.length === 0
+            ? h(EmptyState, {
+                icon: I.history,
+                title: "Su historial está vacío",
+                description: "Cada análisis que haga se guarda aquí automáticamente, con su resultado, fecha y código de paciente.",
+                action: onNavigate && h("button", { className: "btn btn-primary", onClick: () => onNavigate("single") },
+                  h(I.upload, { size: 14 }), "Hacer un análisis"),
+              })
+            : h(EmptyState, {
+                icon: I.eye, tone: "neutral",
+                title: "Ningún estudio coincide",
+                description: "No hay resultados para esta búsqueda o estos filtros. Pruebe con otro período o resultado.",
+                action: h("button", { className: "btn btn-secondary", onClick: handleLimpiarFiltros },
+                  h(I.refresh, { size: 14 }), "Limpiar filtros"),
+              }),
         )
 
       : h("div", { style: { display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 16, alignItems: "start" } },

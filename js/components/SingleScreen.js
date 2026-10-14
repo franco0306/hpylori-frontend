@@ -4,6 +4,8 @@ import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { predict } from "../api.js";
 import { saveStudy } from "../history.js";
+import { EmptyState, ScanLoader } from "../ui/states.jsx";
+import { toast } from "../ui/toast.jsx";
 import { cacheStudyMedia } from "../sessionCache.js";
 
 const React = window.React;
@@ -109,6 +111,9 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       saveStudy(res, patientName)
         .then((saved) => {
           if (!saved || !saved.id) return;   // early return
+          toast.success("Estudio guardado en el historial",
+            (res.clase === "Positivo" ? "Resultado positivo" : "Resultado negativo") +
+            (patientName ? " · " + patientName : ""));
           // La caché de sesión es accesoria: si falla no debe hacerse pasar por
           // un fallo de guardado, que es un aviso mucho más grave.
           try {
@@ -475,12 +480,20 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
         ),
         h("div", { className: "card-pad" },
           phase === "idle" && !result && h("div", { className: "result-empty" },
-            h(I.bact, { size: 32 }),
-            h("div", null, h("strong", null, "Sin resultados aún")),
-            h("div", { style: { maxWidth: 280, fontSize: 12.5 } }, "Carga una imagen y presiona Analizar."),
+            h(EmptyState, {
+              icon: file ? I.bact : I.upload,
+              title: file ? "Imagen lista para analizar" : "Sin resultados aún",
+              description: file
+                ? "Pulse «Analizar imagen» para obtener el diagnóstico sugerido y su mapa Grad-CAM."
+                : "Cargue una imagen endoscópica o elija una muestra de prueba para comenzar.",
+              compact: true,
+            }),
           ),
-          phase === "loading" && h("div", { style: { textAlign: "center", padding: "20px 0" } },
-            h("div", { className: "spinner" }),
+          phase === "loading" && h("div", { style: { textAlign: "center", padding: "4px 0 8px" } },
+            // El haz recorre la imagen que se está analizando: el médico ve que
+            // el sistema trabaja sobre SU imagen, no solo que algo carga.
+            h("div", { style: { marginBottom: 16 } },
+              h(ScanLoader, { src: file && file.src, alt: "Imagen en análisis" })),
             h("div", { style: { fontWeight: 600 } },
               reintentando ? "Reintentando el análisis…" : "Analizando imagen endoscópica…"),
             (esperaLarga || reintentando) && h("div", {

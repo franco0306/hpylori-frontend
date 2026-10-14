@@ -985,7 +985,7 @@ button { font-family: inherit; cursor: pointer; }
 .dash-leyenda-num { font-weight: 600; font-size: 12px; }
 .dash-leyenda-total { display: flex; justify-content: space-between; border-top: 1px dashed var(--ink-200); padding-top: 10px; font-size: 12px; color: var(--ink-500); }
 .dash-recientes { overflow: hidden; }
-.dash-recientes .study-row { padding: 12px 20px; }
+.dash-recientes .study-row { padding: 12px 36px 12px 20px; }
 .dash-recientes .study-thumb { width: 52px; height: 40px; border-radius: 8px; }
 .dash-vacio { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 40px 20px; text-align: center; }
 .dash-vacio-icono { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-50); color: var(--blue-700); margin-bottom: 6px; }
@@ -1013,4 +1013,119 @@ button { font-family: inherit; cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dash-skeleton-fila { animation: none; }
+}
+
+/* ── Alertas v2 ─────────────────────────────────────────────────────────────
+   Barra de acento, icono en ficha y entrada suave. Sigue siendo la misma
+   clase `.alert`, así que todas las pantallas la heredan sin cambios.       */
+.alert {
+  --alert-accent: var(--blue-700);
+  position: relative; overflow: hidden;
+  border-radius: 12px; padding: 12px 14px 12px 16px; gap: 12px; line-height: 1.5;
+  animation: alert-in .32s cubic-bezier(.16, 1, .3, 1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.alert::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--alert-accent);
+}
+.alert > svg:first-child {
+  flex-shrink: 0; box-sizing: content-box; padding: 5px; margin-top: -1px;
+  border-radius: 8px; color: var(--alert-accent);
+  background: color-mix(in srgb, var(--alert-accent) 14%, transparent);
+}
+.alert strong { display: block; font-weight: 600; }
+.alert-error { --alert-accent: var(--red-600); }
+.alert-warn  { --alert-accent: var(--amber-600); }
+.alert-info  { --alert-accent: var(--blue-700); }
+.alert-success { --alert-accent: var(--green-600); background: var(--green-50); border-color: var(--green-100); color: #14532D; }
+:root[data-theme="dark"] .alert-success { color: #BBF7D0; }
+@keyframes alert-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ── Notificaciones (toasts) ── */
+.toaster {
+  position: fixed; top: 68px; right: 16px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto; position: relative; overflow: hidden;
+  display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px;
+  border-radius: 14px; border: 1px solid var(--ink-200);
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: 0 18px 44px -18px rgba(15, 23, 42, .35);
+}
+.toast-icono { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.toast-titulo { font-size: 13.5px; font-weight: 600; color: var(--ink-900); }
+.toast-detalle { font-size: 12.5px; color: var(--ink-500); margin-top: 2px; line-height: 1.45; }
+.toast-cerrar {
+  border: 0; background: transparent; color: var(--ink-400); padding: 4px; border-radius: 6px;
+  display: grid; place-items: center; transition: background .15s ease, color .15s ease;
+}
+.toast-cerrar:hover { background: var(--ink-100); color: var(--ink-900); }
+.toast-barra { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; transform-origin: left; opacity: .7; }
+
+/* ── Esqueletos de carga ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--ink-100) 0%, var(--ink-50) 50%, var(--ink-100) 100%);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+
+/* ── Medidor de contraseña ── */
+.medidor-clave { display: flex; align-items: center; gap: 10px; margin-top: -6px; }
+.medidor-segmentos { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.medidor-seg { height: 4px; border-radius: 999px; transition: background .25s ease; }
+.medidor-txt { font-size: 11.5px; font-weight: 600; min-width: 64px; text-align: right; }
+
+/* ── Estados hover ──────────────────────────────────────────────────────────
+   Cada elemento clicable responde al puntero: elevación sutil en botones,
+   realce en filas y tarjetas, y un subrayado que crece en los enlaces.     */
+.btn { transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease, color .15s ease; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.98); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--ink-400); box-shadow: 0 6px 16px -10px rgba(15, 23, 42, .35); }
+.btn-ghost:hover:not(:disabled) { color: var(--ink-900); }
+.btn:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+.btn img { transition: transform .35s cubic-bezier(.16, 1, .3, 1); }
+.btn:hover:not(:disabled) img { transform: scale(1.05); }
+
+.table tbody tr { transition: background .15s ease, box-shadow .15s ease; }
+.table tbody tr:hover { background: var(--blue-50); box-shadow: inset 3px 0 0 var(--blue-600); }
+
+.study-row { position: relative; transition: background .15s ease; }
+.study-row::after {
+  content: "›"; position: absolute; right: 8px; top: 50%; transform: translate(-4px, -50%);
+  opacity: 0; color: var(--blue-700); font-size: 18px; transition: opacity .15s ease, transform .2s ease;
+}
+.study-row:hover { background: var(--blue-50); }
+.study-row:hover::after { opacity: 1; transform: translate(0, -50%); }
+.study-row:hover .study-code { color: var(--blue-700); }
+.study-thumb { transition: transform .3s cubic-bezier(.16, 1, .3, 1); }
+.study-row:hover .study-thumb { transform: scale(1.06); }
+
+.linklike { text-decoration: none; background-image: linear-gradient(currentColor, currentColor); background-size: 100% 1px; background-position: 0 100%; background-repeat: no-repeat; transition: background-size .25s ease, color .15s ease; }
+.linklike:hover { background-size: 0% 1px; background-position: 100% 100%; }
+
+.nav-item:hover:not(.active) { background: var(--ink-50); color: var(--ink-900); }
+.nav-item .nav-icon { transition: transform .2s ease, color .15s ease; }
+.nav-item:hover .nav-icon { transform: translateX(2px); color: var(--ink-900); }
+
+.segment-pill:hover:not(.selected), .preset-btn:hover:not(.selected), .palette-option:hover:not(.selected) {
+  border-color: var(--blue-100); background: var(--blue-50); }
+
+.dropzone { transition: border-color .2s ease, background .2s ease, box-shadow .25s ease; }
+.dropzone:hover, .dropzone.active { box-shadow: 0 0 0 4px var(--blue-100), 0 18px 40px -24px rgba(30, 64, 175, .5); }
+.dropzone .dropzone-icon { transition: transform .3s cubic-bezier(.16, 1, .3, 1); }
+.dropzone:hover .dropzone-icon, .dropzone.active .dropzone-icon { transform: translateY(-4px); }
+
+.badge { transition: transform .15s ease; }
+.dropdown-item { transition: background .12s ease, padding-left .15s ease; }
+.dropdown-item:hover:not(:disabled) { padding-left: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .alert, .skeleton { animation: none; }
+  .btn:hover:not(:disabled), .btn:active:not(:disabled), .dropzone:hover .dropzone-icon,
+  .study-row:hover .study-thumb, .btn:hover:not(:disabled) img { transform: none; }
 }

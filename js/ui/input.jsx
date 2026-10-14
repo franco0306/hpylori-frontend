@@ -1,11 +1,14 @@
 import { forwardRef, useState } from "react";
-import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
+import { AnimatePresence, motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import { cn } from "./cn.js";
+import { I } from "../icons.js";
+import { Spinner } from "./states.jsx";
 
 // Aceternity UI · Input (del bloque «Signup Form»)
 // Un halo de color sigue al puntero alrededor del campo. Se añade `icon` para
-// conservar los iconos de los formularios existentes.
-export const Input = forwardRef(function Input({ className, icon: Icono, ...props }, ref) {
+// conservar los iconos de los formularios existentes, y `error` para la
+// validación propia: mensaje bajo el campo en vez del globo del navegador.
+export const Input = forwardRef(function Input({ className, icon: Icono, error, id, ...props }, ref) {
   const radio = 110;
   const [visible, setVisible] = useState(false);
   const x = useMotionValue(0);
@@ -20,25 +23,32 @@ export const Input = forwardRef(function Input({ className, icon: Icono, ...prop
   return (
     <motion.div
       style={{
-        background: useMotionTemplate`radial-gradient(${visible ? radio + "px" : "0px"} circle at ${x}px ${y}px, var(--accent-glow), transparent 80%)`,
+        background: useMotionTemplate`radial-gradient(${visible ? radio + "px" : "0px"} circle at ${x}px ${y}px, ${error ? "rgba(239,68,68,.5)" : "var(--accent-glow)"}, transparent 80%)`,
       }}
       onMouseMove={handleMove}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       className="tw group/input relative rounded-[10px] p-[2px] transition duration-300"
+      animate={error ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
+      transition={{ duration: 0.35 }}
     >
       {Icono && (
-        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-ink-400 transition group-focus-within/input:text-brand-700">
+        <span className={cn("pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 transition",
+                            error ? "text-pos" : "text-ink-400 group-focus-within/input:text-brand-700")}>
           <Icono size={15} />
         </span>
       )}
       <input
         ref={ref}
+        id={id}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error && id ? id + "-error" : undefined}
         className={cn(
           "box-border flex h-11 w-full rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-[13.5px] text-ink-900",
           "font-sans outline-none transition duration-300 placeholder:text-ink-400",
           "shadow-[0_1px_0_0_rgba(15,23,42,0.03)] focus:border-brand-600 focus:bg-surface focus:ring-[3px] focus:ring-brand-100",
           Icono && "pl-9",
+          error && "border-pos focus:border-pos focus:ring-[color:var(--red-100)]",
           className,
         )}
         {...props}
@@ -55,6 +65,30 @@ export function Label({ className, children, ...props }) {
   );
 }
 
+// Mensaje de validación bajo un campo. Entra deslizándose; se anuncia a los
+// lectores de pantalla porque el campo lo referencia con aria-describedby.
+export function FieldError({ id, children }) {
+  return (
+    <AnimatePresence initial={false}>
+      {children && (
+        <motion.div
+          key="error"
+          id={id ? id + "-error" : undefined}
+          role="alert"
+          initial={{ opacity: 0, height: 0, y: -4 }}
+          animate={{ opacity: 1, height: "auto", y: 0 }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+          className="tw flex items-center gap-1.5 overflow-hidden pt-1.5 text-[12px] font-medium text-pos"
+        >
+          <I.alert size={12} />
+          <span>{children}</span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // Aceternity UI · Bottom Gradient
 // Línea de luz que aparece bajo el botón al pasar el puntero.
 export function BottomGradient() {
@@ -67,7 +101,7 @@ export function BottomGradient() {
 }
 
 // Botón primario con degradado y Bottom Gradient.
-export function GradientButton({ className, children, ...props }) {
+export function GradientButton({ className, children, loading = false, disabled, ...props }) {
   return (
     <button
       className={cn(
@@ -77,8 +111,11 @@ export function GradientButton({ className, children, ...props }) {
         "transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
+      disabled={disabled || loading}
+      aria-busy={loading ? "true" : undefined}
       {...props}
     >
+      {loading && <Spinner />}
       {children}
       <BottomGradient />
     </button>

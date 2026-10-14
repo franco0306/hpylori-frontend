@@ -2,6 +2,7 @@ import { I } from "../icons.js";
 import { THEMES } from "../theme.js";
 import { PALETTES } from "../xai.js";
 import { PrivacyPanel } from "./PrivacyPanel.js";
+import { toast } from "../ui/toast.jsx";
 
 const React = window.React;
 const { useState } = React;
@@ -75,6 +76,7 @@ export function SettingsScreen({ prefs, onSave, theme, onToggleTheme, xaiPalette
 
   function handleSave() {
     onSave({ threshold });
+    toast.success("Configuración guardada", "Sensibilidad: " + thresholdTier(threshold).label + ".");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }

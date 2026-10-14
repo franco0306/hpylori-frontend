@@ -7,6 +7,8 @@
 import { I } from "../icons.js";
 import { authFetch } from "../auth.js";
 import { ARCO_TIPOS, ARCO_ESTADO_LABEL } from "../privacy.js";
+import { EmptyState, SkeletonTable, Skeleton } from "../ui/states.jsx";
+import { toast } from "../ui/toast.jsx";
 
 const React = window.React;
 const { useState, useEffect, useCallback } = React;
@@ -153,17 +155,24 @@ function Bitacora() {
     error && h("div", { className: "alert alert-error", role: "alert", style: { margin: "0 20px 16px" } },
       h(I.alert, { size: 16 }), h("div", null, error)),
 
-    h("div", { className: "table-wrap" },
+    cargando && !datos
+      ? h(SkeletonTable, { rows: 8, cols: 6, label: "Cargando bitácora" })
+      : datos && datos.eventos.length === 0
+        ? h(EmptyState, { icon: I.history, tone: "neutral",
+            title: filtro || consulta ? "Ningún evento coincide" : "La bitácora está vacía",
+            description: filtro || consulta
+              ? "No hay eventos para este filtro o búsqueda. Pruebe con otro tipo de acción."
+              : "Los inicios de sesión y las acciones críticas aparecerán aquí a medida que ocurran.",
+            action: (filtro || consulta) && h("button", { className: "btn btn-secondary",
+              onClick: () => { setFiltro(""); setBusqueda(""); setConsulta(""); setPagina(0); } },
+              h(I.refresh, { size: 14 }), "Quitar filtros") })
+        : h("div", { className: "table-wrap" },
       h("table", { className: "table" },
         h("thead", null, h("tr", null,
           h("th", null, "Fecha y hora"), h("th", null, "Usuario"), h("th", null, "Acción"),
           h("th", null, "Recurso y detalle"), h("th", null, "Resultado"), h("th", null, "IP"))),
         h("tbody", null,
-          cargando && !datos
-            ? h("tr", null, h("td", { colSpan: 6, className: "muted" }, "Cargando…"))
-            : datos && datos.eventos.length === 0
-              ? h("tr", null, h("td", { colSpan: 6, className: "muted" }, "Sin eventos para este filtro."))
-              : datos && datos.eventos.map((e) =>
+          datos && datos.eventos.map((e) =>
                   h("tr", { key: e.id },
                     h("td", { className: "mono", style: { whiteSpace: "nowrap", fontSize: 12 } }, fmtFecha(e.fecha)),
                     h("td", null, e.actor_email || h("span", { className: "muted" }, "—")),
@@ -179,7 +188,7 @@ function Bitacora() {
       ),
     ),
 
-    h("div", { className: "row between bitacora-paginacion" },
+    datos && h("div", { className: "row between bitacora-paginacion" },
       h("span", { className: "muted", style: { fontSize: 12.5 } },
         total + " evento" + (total === 1 ? "" : "s") + " · página " + (pagina + 1) + " de " + paginas),
       h("div", { className: "row", style: { gap: 6 } },
@@ -215,6 +224,8 @@ function SolicitudesArco() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estado, respuesta: (respuestas[s.id] || "").trim() || null }),
       });
+      toast.success(estado === "atendida" ? "Solicitud atendida" : "Solicitud rechazada",
+        "El titular verá el nuevo estado en su panel de privacidad.");
       cargar();
     } catch (err) {
       setError(err.message || "No se pudo actualizar la solicitud.");
@@ -234,9 +245,12 @@ function SolicitudesArco() {
     error && h("div", { className: "alert alert-error", role: "alert", style: { marginBottom: 12 } },
       h(I.alert, { size: 16 }), h("div", null, error)),
     !solicitudes
-      ? h("div", { className: "muted", style: { fontSize: 13 } }, "Cargando…")
+      ? h("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+          [0, 1].map((i) => h(Skeleton, { key: i, style: { height: 64, borderRadius: 10 } })))
       : solicitudes.length === 0
-        ? h("div", { className: "muted", style: { fontSize: 13 } }, "No hay solicitudes registradas.")
+        ? h(EmptyState, { icon: I.mail, tone: "success", compact: true,
+            title: "Sin solicitudes ARCO",
+            description: "Cuando un usuario ejerza sus derechos de acceso, rectificación, cancelación u oposición, aparecerá aquí." })
         : solicitudes.map((s) =>
             h("div", { key: s.id, className: "privacy-arco-item" },
               h("div", { className: "row between" },
@@ -282,6 +296,7 @@ function ExportacionInvestigacion() {
       enlace.remove();
       setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
       setEstado({ ok: true });
+      toast.success("Exportación generada", nombre + " · registrada en la bitácora.");
     } catch {
       setEstado({ error: "No se pudo generar la exportación." });
     }

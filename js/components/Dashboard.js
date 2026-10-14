@@ -3,6 +3,7 @@ import { I } from "../icons.js";
 import { getStudies } from "../history.js";
 import { getStudyMedia } from "../sessionCache.js";
 import { SpotlightCard, HoverEffect, AnimatedNumber, ShimmerButton } from "../ui/cards.jsx";
+import { EmptyState, SkeletonRows } from "../ui/states.jsx";
 
 const React = window.React;
 const { useState, useEffect, useMemo } = React;
@@ -269,15 +270,15 @@ export function Dashboard({ onNavigate, onViewHeatmap, user }) {
           }, "Ver todos", h(I.chev, { size: 12 })),
         ),
         cargando
-          ? h("div", { className: "dash-skeleton" },
-              [0, 1, 2, 3].map((i) => h("div", { key: i, className: "dash-skeleton-fila" })))
+          ? h(SkeletonRows, { rows: 5, label: "Cargando estudios recientes" })
           : recent.length === 0
-            ? h("div", { className: "dash-vacio" },
-                h("span", { className: "dash-vacio-icono" }, h(I.scan, { size: 22 })),
-                h("div", { className: "dash-vacio-titulo" }, "Aún no hay estudios"),
-                h("div", { className: "dash-vacio-sub" }, "Realice su primer análisis para verlo aquí."),
-                h("button", { className: "btn btn-secondary", onClick: () => onNavigate("single") },
-                  h(I.upload, { size: 14 }), "Analizar una imagen"))
+            ? h(EmptyState, {
+                icon: I.scan,
+                title: "Aún no hay estudios",
+                description: "Cuando analice su primera imagen endoscópica, el caso aparecerá aquí con su resultado.",
+                action: h("button", { className: "btn btn-primary", onClick: () => onNavigate("single") },
+                  h(I.upload, { size: 14 }), "Analizar una imagen"),
+              })
             : h("div", null,
                 recent.map((study, i) => {
                   const isPos    = study.clase === "Positivo";

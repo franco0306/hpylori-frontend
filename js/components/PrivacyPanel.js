@@ -10,6 +10,8 @@ import {
   getConsents, saveConsents, getConsentHistory, downloadMyData,
   createArcoRequest, getArcoRequests, ARCO_TIPOS, ARCO_ESTADO_LABEL,
 } from "../privacy.js";
+import { EmptyState, Skeleton } from "../ui/states.jsx";
+import { toast } from "../ui/toast.jsx";
 
 const React = window.React;
 const { useState, useEffect, useCallback } = React;
@@ -71,8 +73,8 @@ export function PrivacyPanel({ consents, onConsentsChange }) {
       setEstado(nuevo);
       onConsentsChange && onConsentsChange(nuevo);
       setHistorial(null);     // la traza cambió: se recarga al abrirla
-      setAviso({ tipo: "info", texto: (aceptado ? "Autorizó: " : "Revocó: ") + clausula.titulo +
-        ". La decisión quedó registrada con fecha e IP." });
+      toast.success(aceptado ? "Autorización concedida" : "Autorización revocada",
+        clausula.titulo + ". Quedó registrado con fecha e IP.");
     } catch (err) {
       setAviso({ tipo: "error", texto: err.message || "No se pudo guardar la decisión." });
     } finally {
@@ -109,7 +111,7 @@ export function PrivacyPanel({ consents, onConsentsChange }) {
     try {
       await createArcoRequest(tipoArco, detalleArco.trim());
       setDetalleArco("");
-      setAviso({ tipo: "info", texto: "Solicitud registrada. El administrador la atenderá y verá aquí su estado." });
+      toast.success("Solicitud ARCO enviada", "El administrador la atenderá; verá aquí su estado.");
       cargarSolicitudes();
     } catch (err) {
       setAviso({ tipo: "error", texto: err.message || "No se pudo registrar la solicitud." });
@@ -170,7 +172,12 @@ export function PrivacyPanel({ consents, onConsentsChange }) {
             }, h("span", { className: "switch-knob" })),
           ),
         ),
-        !estado && h("div", { className: "muted", style: { fontSize: 13 } }, "Cargando autorizaciones…"),
+        !estado && h("div", { role: "status", "aria-label": "Cargando autorizaciones" },
+          [0, 1, 2].map((i) => h("div", { key: i, className: "privacy-row" },
+            h("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: 8 } },
+              h(Skeleton, { style: { height: 12, width: "55%", borderRadius: 4 } }),
+              h(Skeleton, { style: { height: 10, width: "85%", borderRadius: 4 } })),
+            h(Skeleton, { style: { height: 24, width: 44, borderRadius: 999 } })))),
 
         h("div", { className: "row", style: { gap: 8, marginTop: 14, flexWrap: "wrap" } },
           h("button", { type: "button", className: "btn btn-secondary", onClick: handleDescargar, disabled: descargando },
@@ -182,9 +189,12 @@ export function PrivacyPanel({ consents, onConsentsChange }) {
 
         verHistorial && h("div", { className: "table-wrap", style: { marginTop: 12 } },
           !historial
-            ? h("div", { className: "muted", style: { fontSize: 13 } }, "Cargando…")
+            ? h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                [0, 1, 2].map((i) => h(Skeleton, { key: i, style: { height: 14, borderRadius: 4 } })))
             : historial.length === 0
-              ? h("div", { className: "muted", style: { fontSize: 13 } }, "Sin decisiones registradas.")
+              ? h(EmptyState, { icon: I.history, tone: "neutral", compact: true,
+                  title: "Sin decisiones registradas",
+                  description: "Cuando acepte o revoque una autorización, quedará anotada aquí." })
               : h("table", { className: "table" },
                   h("thead", null, h("tr", null,
                     h("th", null, "Fecha"), h("th", null, "Cláusula"),

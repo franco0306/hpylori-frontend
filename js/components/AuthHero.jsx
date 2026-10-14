@@ -6,6 +6,7 @@
 
 import { motion } from "framer-motion";
 import { I } from "../icons.js";
+import { LOGO_FULL } from "../brand.js";
 import { Spotlight, GridBackground } from "../ui/spotlight.jsx";
 import { TextGenerateEffect } from "../ui/text-generate.jsx";
 
@@ -34,17 +35,14 @@ export function AuthHero({ title, lead }) {
            className="pointer-events-none absolute -bottom-40 -right-24 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.28),transparent_65%)] blur-2xl" />
 
       <div className="relative z-10 max-w-[520px]">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-1 pr-3 text-[12px] text-slate-300 backdrop-blur"
-        >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-blue-700 text-white">
-            <I.bact size={13} />
-          </span>
-          EndoScan AI · Detección de H. pylori
-        </motion.div>
+        <motion.img
+          src={LOGO_FULL}
+          alt="EndoScan AI · Apoyo diagnóstico"
+          initial={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-9 block h-auto w-[300px] max-w-full drop-shadow-[0_8px_30px_rgba(56,189,248,0.18)]"
+        />
 
         <h1 className="m-0 text-[40px] font-extrabold leading-[1.1] tracking-tight">
           <TextGenerateEffect words={title}

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { I } from "../icons.js";
+import { LOGO_ICON } from "../brand.js";
 import { ROLES, ROLE_LABEL, getRole } from "../roles.js";
 
 const h = window.React.createElement;
@@ -51,7 +52,7 @@ export function Sidebar({ current, onNavigate, user, onLogout, onOpenLegal,
     "aria-hidden": undefined,
   },
     h("div", { className: "brand" },
-      h("div", { className: "brand-mark" }, "Hp"),
+      h("img", { className: "brand-mark", src: LOGO_ICON, alt: "", width: 34, height: 34 }),
       h("div", null,
         h("div", { className: "brand-name" }, "EndoScan AI"),
         h("div", { className: "brand-sub" }, "Apoyo diagnóstico"),

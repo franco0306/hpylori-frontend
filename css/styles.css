@@ -1129,3 +1129,11 @@ button { font-family: inherit; cursor: pointer; }
   .btn:hover:not(:disabled), .btn:active:not(:disabled), .dropzone:hover .dropzone-icon,
   .study-row:hover .study-thumb, .btn:hover:not(:disabled) img { transform: none; }
 }
+
+/* ── Marca: logo en imagen ── */
+img.brand-mark {
+  display: block; width: 34px; height: 34px; padding: 0; object-fit: cover;
+  border-radius: 9px; background: #0D1522;
+  box-shadow: 0 6px 16px -8px rgba(13, 21, 34, .7);
+}
+.auth-form-side img.brand-mark { width: 38px; height: 38px; border-radius: 10px; }

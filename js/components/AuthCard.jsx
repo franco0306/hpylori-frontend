@@ -4,6 +4,7 @@
 
 import { motion } from "framer-motion";
 import { I } from "../icons.js";
+import { LOGO_ICON } from "../brand.js";
 
 export function AuthCard({ titulo, subtitulo, pie, children }) {
   return (
@@ -17,7 +18,7 @@ export function AuthCard({ titulo, subtitulo, pie, children }) {
         className="tw relative w-[400px] max-w-full rounded-2xl border border-ink-200 bg-surface p-8 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.35)]"
       >
         <div className="mb-7 flex items-center gap-2.5">
-          <div className="brand-mark">Hp</div>
+          <img className="brand-mark" src={LOGO_ICON} alt="" width={38} height={38} />
           <div>
             <div className="text-[14px] font-semibold text-ink-900">EndoScan AI</div>
             <div className="font-mono text-[11px] text-ink-500">Detección de H. pylori</div>

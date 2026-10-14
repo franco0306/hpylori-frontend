@@ -16,7 +16,7 @@
 //   }
 
 import { CONFIG } from "./config.js";
-import { getToken } from "./auth.js";
+import { authFetch } from "./auth.js";
 import { findModel } from "./models.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,13 +65,11 @@ async function realPredict(file, opts = {}, esReintento = false) {
   const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);
 
   try {
-    // El token es lo que permite al servidor archivar la imagen y el mapa en
-    // Storage: sin él, la inferencia sale igual pero no se guarda nada.
-    const token = getToken();
-    const res = await fetch(CONFIG.API_BASE_URL + CONFIG.PREDICT_PATH, {
+    // La inferencia exige sesión (Zero Trust). `authFetch` añade el token y,
+    // si caducó a mitad de la consulta, lo renueva y repite la petición.
+    const res = await authFetch(CONFIG.PREDICT_PATH, {
       method: "POST",
       body: fd,
-      headers: token ? { Authorization: "Bearer " + token } : undefined,
       signal: ctrl.signal,
     });
     if (!res.ok) {

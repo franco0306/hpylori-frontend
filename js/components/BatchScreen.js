@@ -2,6 +2,7 @@ import { I } from "../icons.js";
 import { SAMPLES } from "../samples.js";
 import { CONFIG } from "../config.js";
 import { CLINICAL_MODEL_ID } from "../api.js";
+import { authFetch } from "../auth.js";
 
 const React = window.React;
 const { useState, useRef } = React;
@@ -84,7 +85,8 @@ export function BatchScreen({ model, threshold }) {
         const start = performance.now();
         let res;
         try {
-          res = await fetch(CONFIG.API_BASE_URL + CONFIG.PREDICT_PATH, {
+          // Con sesión: el servidor ya no atiende inferencias anónimas.
+          res = await authFetch(CONFIG.PREDICT_PATH, {
             method: "POST",
             body: fd,
             signal: ctrl.signal,

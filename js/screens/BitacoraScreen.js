@@ -17,6 +17,13 @@ const POR_PAGINA = 25;
 const ACCIONES = {
   "auth.login":                       "Inicio de sesión",
   "auth.registro":                    "Registro de cuenta",
+  "auth.login.password":              "Contraseña válida (falta 2FA)",
+  "auth.mfa":                         "Verificación 2FA",
+  "auth.mfa.alta_iniciada":           "Alta de 2FA iniciada",
+  "auth.mfa.activado":                "2FA activado",
+  "auth.logout":                      "Cierre de sesión",
+  "auth.refresh.reutilizado":         "Token reutilizado (posible robo)",
+  "admin.mfa.reiniciar":              "Reinicio de 2FA",
   "acceso.denegado":                  "Acceso denegado",
   "admin.usuarios.consulta":          "Consulta de cuentas",
   "admin.rol.cambio":                 "Cambio de rol",

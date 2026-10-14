@@ -740,7 +740,7 @@ function ModalRestablecer({ fila, estado, error, onConfirmar, onCerrar }) {
 
 // ── Menú de acciones por cuenta (kebab) ──────────────────────────────────────
 function MenuAcciones({ fila, abierto, esPropio, onAlternar, onCerrar,
-                        onEditar, onClave, onEstado, onEliminar }) {
+                        onEditar, onClave, onEstado, onEliminar, onMfa }) {
   const contenedor = useRef(null);
 
   useEffect(() => {
@@ -793,6 +793,13 @@ function MenuAcciones({ fila, abierto, esPropio, onAlternar, onCerrar,
     },
       opcion({ onClick: () => onEditar(fila) }, I.edit, "Editar datos"),
       opcion({ onClick: () => onClave(fila) }, I.lock, "Cambiar contraseña"),
+      // Teléfono perdido: quitar el segundo factor obliga a darlo de alta de
+      // nuevo en el próximo ingreso. Cierra también sus sesiones abiertas.
+      fila.mfa_enabled && onMfa && opcion({
+        onClick: () => onMfa(fila),
+        disabled: esPropio,
+        title: esPropio ? "No puede reiniciar su propio segundo factor" : undefined,
+      }, I.shield, "Reiniciar verificación en dos pasos"),
       h("div", { className: "dropdown-sep", role: "separator" }),
       opcion({
         onClick: () => onEstado(fila),
@@ -1002,7 +1009,7 @@ function ModalEliminar({ fila, borrando, error, onConfirmar, onCerrar }) {
 function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando, aviso,
                           limiteMb, menuAbierto, onAlternarMenu, onCerrarMenu,
                           onCambiarRol, onRestablecer, onEditar, onCambiarEstado,
-                          onEliminar, onReintentar }) {
+                          onEliminar, onReintentar, onReiniciarMfa }) {
   // Solo para el rótulo del título emergente; el porcentaje ya viene calculado
   // contra este mismo límite desde el servidor.
   const limiteCuotaMb = limiteMb || CUOTA_MB;
@@ -1090,7 +1097,13 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                 ocupado ? h("span", { className: "spinner-sm" }) : null,
                 ROLE_LABEL[rol],
                 !esPropio && !ocupado && h(I.refresh, { size: 11, "aria-hidden": true }),
-              )),
+              ),
+              // Segundo factor: obligatorio para administración.
+              u.mfa_enabled
+                ? h("span", { className: "badge badge-neg", style: { marginLeft: 6 },
+                              title: "Verificación en dos pasos activa" }, "2FA")
+                : rol === ROLES.ADMIN && h("span", { className: "badge badge-warn", style: { marginLeft: 6 },
+                              title: "Configurará el segundo factor en su próximo ingreso" }, "2FA pendiente")),
 
             // Cuando la cuenta es anterior a la columna `last_login`, el servidor
             // devuelve el alta: se rotula como tal en lugar de hacerla pasar por
@@ -1161,6 +1174,7 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                 onClave: onRestablecer,
                 onEstado: onCambiarEstado,
                 onEliminar: onEliminar,
+                onMfa: onReiniciarMfa,
               })),
           );
         }),
@@ -1426,6 +1440,23 @@ export function AdminScreen({ section = "panel", user }) {
     }
   }, []);
 
+  const handleReiniciarMfa = useCallback(async (fila) => {
+    setMenuAbierto(null);
+    setAviso(null);
+    try {
+      await enviarJson("/admin/users/" + fila.id + "/mfa/reset", "POST");
+      setUsuarios((previos) => previos.map((u) => (
+        u.id === fila.id ? { ...u, mfa_enabled: false } : u)));
+      setAviso({
+        ok: true,
+        texto: (fila.email || "La cuenta") +
+               " deberá configurar de nuevo la verificación en dos pasos. Sus sesiones se cerraron.",
+      });
+    } catch (err) {
+      setAviso({ ok: false, texto: err.detalle || "No se pudo reiniciar el segundo factor." });
+    }
+  }, []);
+
   const handleAbrirEliminar = useCallback((fila) => {
     setMenuAbierto(null);
     setErrorBorrado(null);
@@ -1525,6 +1556,7 @@ export function AdminScreen({ section = "panel", user }) {
       onEditar: handleAbrirEdicion,
       onCambiarEstado: handleCambiarEstado,
       onEliminar: handleAbrirEliminar,
+      onReiniciarMfa: handleReiniciarMfa,
       onReintentar: handleRecargar,
     }),
 

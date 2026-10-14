@@ -104,8 +104,16 @@ export function BatchScreen({ model, threshold }) {
   };
 
   const run = async () => {
-    const motivo = pacienteTexto.trim() ? validarCodigoPaciente(pacienteTexto) : null;
-    if (motivo) { setErrorPaciente(motivo); return; }
+    // Obligatorio: todo el lote se guarda en el historial de este paciente.
+    const motivo = pacienteTexto.trim()
+      ? validarCodigoPaciente(pacienteTexto)
+      : "Indique el código de historia clínica del paciente. Si no tiene, use «Generar código anónimo».";
+    if (motivo) {
+      setErrorPaciente(motivo);
+      const campo = document.getElementById("lote-paciente");
+      if (campo) { campo.focus(); campo.scrollIntoView({ block: "center", behavior: "smooth" }); }
+      return;
+    }
     setErrorPaciente(null);
     const codigo = codigoPaciente(pacienteTexto, pacienteSel);
     const resultados = [];   // { it, data } de las inferencias correctas
@@ -164,7 +172,7 @@ export function BatchScreen({ model, threshold }) {
         });
         setItems((prev) => prev.map((p) => porItem.has(p.id) ? { ...p, guardado: Boolean(porItem.get(p.id)) } : p));
         toast.success(guardados.length + " estudio" + (guardados.length === 1 ? "" : "s") + " guardado" + (guardados.length === 1 ? "" : "s"),
-          codigo ? "En el historial del paciente " + codigo.toUpperCase() + "." : "En el historial, sin paciente asignado.");
+          "En el historial del paciente " + codigo.toUpperCase() + ".");
       } catch (err) {
         const ids = new Set(resultados.map((r) => r.it.id));
         setItems((prev) => prev.map((p) => ids.has(p.id) ? { ...p, guardado: false } : p));
@@ -248,11 +256,11 @@ export function BatchScreen({ model, threshold }) {
         h("div", { className: "section-title", style: { marginBottom: 4 } }, "Paciente del lote"),
         h("div", { className: "muted", style: { fontSize: 12.5, lineHeight: 1.5 } },
           "Todas las imágenes de esta serie se guardarán en el historial de este paciente. ",
-          "Opcional: sin paciente, se guardan sin asignar."),
+          "Es obligatorio: si no tiene historia clínica, genere un código anónimo."),
       ),
       h("div", { className: "lote-paciente-campo" },
         h("label", { className: "field-label", htmlFor: "lote-paciente" },
-          "ID Paciente / Historia Clínica ", h("span", { className: "field-optional" }, "(Opcional)")),
+          "ID Paciente / Historia Clínica ", h("span", { className: "field-required", "aria-hidden": true }, "*")),
         h(PatientPicker, {
           inputId: "lote-paciente",
           value: pacienteTexto,
@@ -260,8 +268,9 @@ export function BatchScreen({ model, threshold }) {
           selected: pacienteSel,
           onSelect: setPacienteSel,
           disabled: running,
+          error: !pacienteTexto.trim() ? errorPaciente : null,
         }),
-        errorPaciente && h("div", { className: "pp-estado is-error", role: "alert" },
+        errorPaciente && pacienteTexto.trim() && h("div", { className: "pp-estado is-error", role: "alert" },
           h(I.alert, { size: 12 }), errorPaciente),
       ),
     ),

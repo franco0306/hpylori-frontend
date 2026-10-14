@@ -70,6 +70,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   // Vista de la imagen tras el análisis: original o con el mapa Grad-CAM.
   const [vista, setVista] = useState("original");
   const inputRef = useRef(null);
+  const pacienteRef = useRef(null);
 
   const accept = (f) => {
     setError(null); setResult(null); setPhase("idle");
@@ -93,9 +94,13 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const analyze = async (opts = {}) => {
     // El código se valida ANTES de gastar una inferencia: si se rechazara al
     // guardar, el médico vería un resultado que no queda en el historial.
-    const motivoPaciente = patientName.trim() ? validarCodigoPaciente(patientName) : null;
+    // Obligatorio: sin paciente el estudio no se puede agrupar ni rastrear.
+    const motivoPaciente = patientName.trim()
+      ? validarCodigoPaciente(patientName)
+      : "Indique el código de historia clínica del paciente. Si no tiene, use «Generar código anónimo».";
     if (motivoPaciente) {
       setError({ k: "paciente", m: motivoPaciente });
+      if (pacienteRef.current) pacienteRef.current.focus();
       return;
     }
     setPhase("loading"); setProgress(0); setError(null); setResult(null); setVista("original");
@@ -421,7 +426,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           h("div", { className: "paciente-campo" },
             h("label", { className: "field-label", htmlFor: "patient-id" },
               "ID Paciente / Historia Clínica ",
-              h("span", { className: "field-optional" }, "(Opcional)"),
+              h("span", { className: "field-required", "aria-hidden": true }, "*"),
             ),
             h(PatientPicker, {
               inputId: "patient-id",
@@ -431,9 +436,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               onSelect: setPacienteSel,
               disabled: cargando,
               describedBy: "patient-id-ayuda",
+              inputRef: pacienteRef,
+              error: error && error.k === "paciente" && !patientName.trim() ? error.m : null,
             }),
             h("div", { id: "patient-id-ayuda", className: "paciente-ayuda" },
-              h(I.shield, { size: 11 }), "Busque o escriba el código; no use nombres ni DNI (Ley N.° 29733)."),
+              h(I.shield, { size: 11 }), "Obligatorio. Busque o escriba el código; no use nombres ni DNI (Ley N.° 29733)."),
           ),
 
           !file ? h("div", null,
@@ -525,7 +532,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
             ),
           ),
 
-          error && h("div", { className: "alert alert-error", style: { marginTop: 16 } },
+          // Los avisos del paciente ya salen bajo su campo: no se duplican aquí.
+          error && error.k !== "paciente" && h("div", { className: "alert alert-error", style: { marginTop: 16 } },
             h(I.alert, { size: 16 }),
             h("div", null,
               h("strong", null,

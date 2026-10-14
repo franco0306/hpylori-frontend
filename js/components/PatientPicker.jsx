@@ -30,7 +30,7 @@ function resumen(p) {
 
 export function PatientPicker({
   inputId = "patient-id", value, onTextChange, selected, onSelect, disabled = false,
-  placeholder = "Ej: HC-2026-104", describedBy,
+  placeholder = "Ej: HC-2026-104", describedBy, error: errorExterno = null, inputRef: refExterna,
 }) {
   const [abierto, setAbierto] = useState(false);
   const [datos, setDatos] = useState(null);
@@ -171,7 +171,9 @@ export function PatientPicker({
         <span className="input-icon"><I.user size={15} /></span>
         <input
           id={inputId}
-          className={"input field-input pp-input" + (motivo && tocado ? " is-error" : "")}
+          ref={refExterna}
+          aria-required="true"
+          className={"input field-input pp-input" + ((motivo && tocado) || errorExterno ? " is-error" : "")}
           type="text"
           value={texto}
           placeholder={placeholder}
@@ -262,7 +264,9 @@ export function PatientPicker({
       </AnimatePresence>
 
       {/* Estado bajo el campo: con quién quedará asociado el estudio. */}
-      {motivo && (tocado || texto.trim().length > 6) ? (
+      {errorExterno && !texto.trim() ? (
+        <div className="pp-estado is-error" role="alert"><I.alert size={12} />{errorExterno}</div>
+      ) : motivo && (tocado || texto.trim().length > 6) ? (
         <div className="pp-estado is-error" role="alert"><I.alert size={12} />{motivo}</div>
       ) : errorAccion ? (
         <div className="pp-estado is-error" role="alert"><I.alert size={12} />{errorAccion}</div>

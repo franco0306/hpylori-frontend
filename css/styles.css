@@ -1044,8 +1044,8 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Notificaciones (toasts) ── */
 .toaster {
-  position: fixed; top: 68px; right: 16px; z-index: 1000;
-  display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 32px));
+  position: fixed; bottom: 16px; right: 16px; z-index: 1000;
+  display: flex; flex-direction: column-reverse; gap: 10px; width: min(380px, calc(100vw - 32px));
   pointer-events: none;
 }
 .toast {
@@ -1308,3 +1308,5 @@ img.brand-mark {
 @media (max-width: 900px) {
   .lote-paciente { grid-template-columns: 1fr; }
 }
+
+.field-required { color: var(--red-600); font-weight: 700; margin-left: 1px; }

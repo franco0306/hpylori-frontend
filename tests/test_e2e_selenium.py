@@ -607,9 +607,13 @@ def sc_batch_upload(driver):
 
 # ── Escenario 15: Procesamiento del lote ─────────────────────────────────────
 def sc_batch_run(driver):
+    # El paciente es obligatorio: todo el lote va a su historial.
+    campo = driver.find_element(By.ID, "lote-paciente")
+    campo.clear()
+    campo.send_keys(TEST_PACIENTE)
     click_by_text(driver, "button", "Procesar 12 imagenes")
     WebDriverWait(driver, 300).until(
-        lambda d: all("completado" in row.text or "ERROR" in row.text.upper()
+        lambda d: all("guardado" in row.text or "ERROR" in row.text.upper()
                       for row in d.find_elements(By.CSS_SELECTOR, "table.table tbody tr"))
         and len(d.find_elements(By.CSS_SELECTOR, "table.table tbody tr")) == 12)
 

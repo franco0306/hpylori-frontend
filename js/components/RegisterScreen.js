@@ -27,7 +27,12 @@ export function RegisterScreen({ onSuccess, onGoToLogin }) {
       return;
     }
     if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
-    if (password.length < 6)  { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    // Misma política que el backend, que es quien la hace cumplir de verdad.
+    if (password.length < 8)  { setError("La contraseña debe tener al menos 8 caracteres."); return; }
+    if (!/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
+      setError("La contraseña debe combinar letras y números.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -82,7 +87,7 @@ export function RegisterScreen({ onSuccess, onGoToLogin }) {
             h("div", { className: "input-icon-wrap" },
               h("span", { className: "input-icon" }, h(I.lock, { size: 15 })),
               h("input", { className: "input", type: "password", required: true,
-                value: password, onChange: (e) => setPassword(e.target.value), placeholder: "Mínimo 6 caracteres" }),
+                value: password, onChange: (e) => setPassword(e.target.value), placeholder: "Mínimo 8, con letras y números" }),
             ),
           ),
           h("div", null,

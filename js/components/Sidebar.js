@@ -22,6 +22,7 @@ export function Sidebar({ current, onNavigate, user, onLogout, onOpenLegal,
   const adminItems = role === ROLES.ADMIN ? [
     { id: "admin",           label: "Panel Admin",          icon: I.shield, group: "Administración" },
     { id: "admin-auditoria", label: "Auditoría y Cuotas",   icon: I.bars,   group: "Administración" },
+    { id: "admin-bitacora",  label: "Bitácora y privacidad", icon: I.history, group: "Administración" },
   ] : [];
 
   const items = [

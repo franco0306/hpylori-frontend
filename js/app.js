@@ -13,6 +13,8 @@ import { SettingsScreen }      from "./components/SettingsScreen.js";
 import { HelpScreen }          from "./components/HelpScreen.js";
 import { AdminScreen }         from "./screens/AdminScreen.js";
 import { LegalModal, hasAcceptedLegal } from "./components/LegalModal.js";
+import { getConsents }         from "./privacy.js";
+import { BitacoraScreen }      from "./screens/BitacoraScreen.js";
 import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
 import { CONFIG }              from "./config.js";
@@ -43,6 +45,7 @@ function App() {
   const [xaiPalette, setXaiPalette]       = useState(getStoredPalette);
   const [legalOpen, setLegalOpen]         = useState(false);
   const [legalForced, setLegalForced]     = useState(false);
+  const [consents, setConsents]           = useState(null);
   const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
   const [heatmapResult, setHeatmapResult] = useState(null);
   const [screen, setScreen]               = useState("single");
@@ -75,12 +78,28 @@ function App() {
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   // Acuerdo de datos: obligatorio en el primer inicio de sesión de cada cuenta.
+  // Manda el backend, que es donde queda la aceptación con versión y fecha. La
+  // copia local solo se consulta si el servidor no responde, para no bloquear
+  // a quien ya aceptó mientras el servicio despierta.
   useEffect(() => {
     if (!authed) return;                       // early return
-    if (hasAcceptedLegal(user)) return;
-    setLegalForced(true);
-    setLegalOpen(true);
-  }, [authed, user]);
+    let vivo = true;
+    getConsents()
+      .then((estado) => {
+        if (!vivo) return;
+        setConsents(estado);
+        if (!estado.terminos_aceptados) {
+          setLegalForced(true);
+          setLegalOpen(true);
+        }
+      })
+      .catch(() => {
+        if (!vivo || hasAcceptedLegal(user)) return;
+        setLegalForced(true);
+        setLegalOpen(true);
+      });
+    return () => { vivo = false; };
+  }, [authed, user && user.id]);
 
   const toggleTheme = () =>
     setTheme((t) => (t === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK));
@@ -139,7 +158,11 @@ function App() {
 
   const handleOpenLegal = () => { setLegalForced(false); setLegalOpen(true); };
   const handleCloseLegal = () => setLegalOpen(false);
-  const handleAcceptLegal = () => { setLegalOpen(false); setLegalForced(false); };
+  const handleAcceptLegal = (estado) => {
+    if (estado) setConsents(estado);
+    setLegalOpen(false);
+    setLegalForced(false);
+  };
 
   const handleAuthSuccess = (loggedInUser) => {
     setUser(loggedInUser);
@@ -153,6 +176,7 @@ function App() {
     setAuthed(false);
     setUser(null);
     setPrefs(DEFAULT_PREFS);
+    setConsents(null);
     setAuthView("login");
   };
 
@@ -172,6 +196,7 @@ function App() {
     manual:    ["EndoScan AI", "Sistema", "Manual de usuario"],
     "admin":           ["EndoScan AI", "Administración", "Panel Admin"],
     "admin-auditoria": ["EndoScan AI", "Administración", "Auditoría y Cuotas"],
+    "admin-bitacora":  ["EndoScan AI", "Administración", "Bitácora y privacidad"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
@@ -184,13 +209,15 @@ function App() {
       case "settings":  return h(SettingsScreen, {
         prefs, onSave: handleSavePrefs, theme, onToggleTheme: toggleTheme,
         xaiPalette, onChangePalette: handleChangePalette,
+        consents, onConsentsChange: setConsents,
       });
       case "manual":    return h(HelpScreen,     {});
 
       // El acceso real debe validarlo el backend en cada endpoint /admin/*;
       // esta comprobación solo evita mostrar la pantalla por error.
       case "admin":
-      case "admin-auditoria": {
+      case "admin-auditoria":
+      case "admin-bitacora": {
         if (getRole(user) !== ROLES.ADMIN) {
           return h("div", { className: "content" },
             h("div", { className: "page-header" },
@@ -203,6 +230,7 @@ function App() {
         }
         // El umbral vive solo en Configuración: el panel administra el sistema,
         // no calibra el diagnóstico.
+        if (screen === "admin-bitacora") return h(BitacoraScreen, {});
         const section = screen === "admin-auditoria" ? "auditoria" : "panel";
         return h(AdminScreen, { section, user });
       }
@@ -242,6 +270,7 @@ function App() {
     h(LegalModal, {
       open: legalOpen,
       user,
+      consents,
       dismissible: !legalForced,
       onAccept: handleAcceptLegal,
       onClose: handleCloseLegal,

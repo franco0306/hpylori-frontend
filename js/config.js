@@ -15,6 +15,7 @@ export const CONFIG = {
   ME_PATH:       "/auth/me",
   STUDIES_PATH:  "/studies",
   SETTINGS_PATH: "/settings",
+  PRIVACY_PATH:  "/privacy",
 
   // Si está en true, no llama al backend: usa datos simulados (modo demo).
   // Pónlo en false cuando tu API esté lista.

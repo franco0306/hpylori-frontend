@@ -1,6 +1,7 @@
 import { I } from "../icons.js";
 import { THEMES } from "../theme.js";
 import { PALETTES } from "../xai.js";
+import { PrivacyPanel } from "./PrivacyPanel.js";
 
 const React = window.React;
 const { useState } = React;
@@ -62,7 +63,8 @@ const PRESETS = [
   { id: "confirmar",  value: 0.70, label: "Priorizar confirmación", hint: "Casos dudosos" },
 ];
 
-export function SettingsScreen({ prefs, onSave, theme, onToggleTheme, xaiPalette, onChangePalette }) {
+export function SettingsScreen({ prefs, onSave, theme, onToggleTheme, xaiPalette, onChangePalette,
+                                 consents = null, onConsentsChange }) {
   // Estado local: el usuario edita aquí antes de guardar
   const [threshold, setThreshold] = useState(prefs.threshold);
   const [saved,     setSaved]     = useState(false);
@@ -307,6 +309,13 @@ export function SettingsScreen({ prefs, onSave, theme, onToggleTheme, xaiPalette
           ),
         ),
       ),
+    ),
+
+    // ── Privacidad (Ley N.° 29733) ────────────────────────────────────────
+    // Fuera de la rejilla: no depende del botón "Guardar cambios" de arriba.
+    // Cada decisión se registra en el servidor al momento.
+    h("div", { style: { marginTop: 20 } },
+      h(PrivacyPanel, { consents, onConsentsChange }),
     ),
   );
 }

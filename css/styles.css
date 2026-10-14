@@ -887,3 +887,36 @@ button { font-family: inherit; cursor: pointer; }
   /* A este ancho el rótulo del botón de tema sobra: el icono ya lo dice. */
   .theme-toggle span { display: none; }
 }
+
+/* ── Privacidad y bitácora (Ley N.° 29733) ─────────────────────────────── */
+.legal-optional { padding: 12px 14px; margin-bottom: 14px; border: 1px solid var(--ink-200); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 10px; }
+.legal-optional-title { font-size: 12.5px; font-weight: 700; color: var(--ink-900); }
+.legal-optional-sub { font-size: 12px; color: var(--ink-500); margin-top: -6px; }
+.legal-accept-optional { font-size: 12px; }
+
+.privacy-lead { font-size: 13px; color: var(--ink-600); margin: 0 0 16px; line-height: 1.6; }
+.privacy-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; }
+.privacy-subtitle { font-size: 13px; font-weight: 700; color: var(--ink-900); margin-bottom: 8px; }
+.privacy-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--ink-100); }
+.privacy-row:last-of-type { border-bottom: 0; }
+.privacy-row-title { font-size: 13.5px; font-weight: 600; color: var(--ink-900); }
+.privacy-row-sub { font-size: 12px; color: var(--ink-500); line-height: 1.5; margin-top: 2px; }
+.privacy-optional-tag { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--blue-700); background: var(--blue-50); border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
+.privacy-arco-form { display: flex; flex-direction: column; gap: 6px; }
+.privacy-arco-form .select, .privacy-arco-form .input { width: 100%; }
+.privacy-arco-form textarea { resize: vertical; min-height: 72px; }
+.privacy-arco-form .btn { align-self: flex-start; margin-top: 8px; }
+.privacy-arco-item { padding: 10px 12px; border: 1px solid var(--ink-200); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+.switch:disabled { opacity: .5; cursor: not-allowed; }
+
+.bitacora-filtros { display: flex; gap: 8px; padding: 14px 20px; flex-wrap: wrap; }
+.bitacora-filtros .input { flex: 1; min-width: 180px; }
+.bitacora-detalle { max-width: 420px; overflow-wrap: anywhere; margin-top: 2px; }
+.bitacora-paginacion { padding: 12px 20px; border-top: 1px solid var(--ink-100); flex-wrap: wrap; }
+.bitacora-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; margin-top: 20px; align-items: start; }
+.bitacora-arco-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.bitacora-arco-acciones .input { flex: 1; min-width: 160px; }
+
+@media (max-width: 900px) {
+  .privacy-grid, .bitacora-grid { grid-template-columns: 1fr; }
+}

@@ -1,12 +1,16 @@
 // Acuerdo de Términos del Servicio y Privacidad de Datos Médicos.
 //
 // Se muestra en el primer inicio de sesión y queda accesible desde el pie de
-// pantalla. La aceptación se guarda por usuario en el navegador: no es un
-// registro de consentimiento con valor probatorio —para eso haría falta
-// almacenarlo en el backend con fecha, versión y usuario—, sino un recordatorio
-// de que el médico leyó el alcance de la herramienta antes de usarla.
+// pantalla. La aceptación se registra en el BACKEND con versión, fecha e IP:
+// eso es lo que tiene valor probatorio. El navegador solo guarda una copia
+// para no volver a pedirla mientras el servidor despierta.
+//
+// Las cláusulas opcionales nacen DESMARCADAS (Ley N.° 29733): el consentimiento
+// para datos accesorios tiene que ser un acto expreso, no una casilla que el
+// usuario olvida quitar. Se pueden cambiar después en Configuración.
 
 import { I } from "../icons.js";
+import { saveConsents } from "../privacy.js";
 
 const React = window.React;
 const { useEffect, useRef, useState } = React;
@@ -14,7 +18,18 @@ const h = React.createElement;
 
 // Al cambiar el texto legal se sube la versión: quien aceptó la anterior
 // vuelve a ver el acuerdo en lugar de quedar vinculado en silencio.
-export const LEGAL_VERSION = "2026-09-v1";
+// Debe coincidir con `VERSION_TERMINOS` del backend.
+export const LEGAL_VERSION = "2026-10-v2";
+
+// Respaldo si el servidor no devolvió el catálogo de cláusulas.
+const OPCIONALES_POR_DEFECTO = [
+  { id: "archivo_imagenes", titulo: "Archivar mis imágenes analizadas",
+    descripcion: "Guardar la imagen endoscópica y su mapa Grad-CAM en almacenamiento privado " +
+                 "para volver a verlas desde el historial." },
+  { id: "uso_investigacion", titulo: "Uso anonimizado para investigación",
+    descripcion: "Incluir los metadatos de mis análisis, sin imágenes ni código de paciente, " +
+                 "en el conjunto anonimizado para mejorar el modelo." },
+];
 
 const STORAGE_PREFIX = "endoscan.legal.";
 
@@ -44,8 +59,11 @@ const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), ' +
   'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function LegalModal({ open, user, onAccept, onClose, dismissible = false }) {
+export function LegalModal({ open, user, onAccept, onClose, dismissible = false, consents = null }) {
   const [accepted, setAccepted] = useState(false);
+  const [opcionales, setOpcionales] = useState({});
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState(null);
   const dialogRef = useRef(null);
   const checkboxRef = useRef(null);
 
@@ -92,17 +110,39 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false 
   }, [open, dismissible, onClose]);
 
   useEffect(() => {
-    if (open) setAccepted(false);
+    if (!open) return;
+    setAccepted(false);
+    setOpcionales({});       // siempre desmarcadas al abrir
+    setError(null);
   }, [open]);
 
   if (!open) return null;   // early return
 
-  const handleToggle = (e) => setAccepted(e.target.checked);
+  const clausulasOpcionales = (consents && consents.clausulas
+    ? consents.clausulas.filter((c) => !c.obligatoria)
+    : OPCIONALES_POR_DEFECTO);
 
-  const handleAccept = () => {
-    if (!accepted) return;   // early return
-    storeLegalAcceptance(user);
-    onAccept && onAccept();
+  const handleToggle = (e) => setAccepted(e.target.checked);
+  const handleOpcional = (id) => (e) =>
+    setOpcionales((prev) => ({ ...prev, [id]: e.target.checked }));
+
+  const handleAccept = async () => {
+    if (!accepted || enviando) return;   // early return
+    setEnviando(true);
+    setError(null);
+    try {
+      const clausulas = {};
+      clausulasOpcionales.forEach((c) => { clausulas[c.id] = Boolean(opcionales[c.id]); });
+      const estado = await saveConsents({ terminosVersion: LEGAL_VERSION, clausulas });
+      storeLegalAcceptance(user);
+      onAccept && onAccept(estado);
+    } catch (err) {
+      setError(err.estado === 409
+        ? "El acuerdo se actualizó. Recargue la página para leer la versión vigente."
+        : "No se pudo registrar su aceptación. Compruebe su conexión y reintente.");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return h("div", {
@@ -191,21 +231,37 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false 
             ),
             h("li", null,
               h("strong", null, "Almacenamiento mínimo. "),
-              "El sistema conserva únicamente metadatos del análisis —clase, probabilidad, ",
-              "latencia, código de paciente y fecha—. Las imágenes no se almacenan en la ",
-              "base de datos y solo permanecen en memoria mientras dure su sesión.",
+              "La base de datos conserva únicamente metadatos del análisis —clase, probabilidad, ",
+              "latencia, código de paciente y fecha—. Las imágenes solo se archivan si usted lo ",
+              "autoriza expresamente abajo; en ese caso se guardan en un almacenamiento ",
+              h("strong", null, "privado y cifrado"),
+              " al que únicamente se accede con enlaces temporales emitidos para su cuenta. ",
+              "Sin esa autorización, la imagen solo existe mientras dure la sesión.",
             ),
             h("li", null,
               h("strong", null, "Derechos ARCO. "),
-              "El titular de los datos puede ejercer sus derechos de acceso, rectificación, ",
-              "cancelación y oposición ante el establecimiento de salud responsable del ",
-              "banco de datos, no ante esta herramienta.",
+              "Sobre los datos de su cuenta puede ejercer los derechos de acceso, rectificación, ",
+              "cancelación y oposición desde ",
+              h("strong", null, "Configuración → Privacidad y datos personales"),
+              ", donde también puede descargar sus datos y revocar las autorizaciones opcionales. ",
+              "Los pacientes ejercen esos derechos ante el establecimiento de salud responsable ",
+              "del banco de datos clínico.",
             ),
           ),
         ),
 
         h("section", { className: "legal-section" },
-          h("h3", { className: "legal-heading" }, "3. Uso académico"),
+          h("h3", { className: "legal-heading" }, "3. Seguridad y trazabilidad"),
+          h("p", null,
+            "Toda comunicación viaja cifrada por HTTPS y las contraseñas se guardan con ",
+            "hash bcrypt. Cada acceso, cambio de permisos, exportación y decisión sobre este ",
+            "acuerdo queda en una bitácora de auditoría con fecha, hora e IP, que ningún ",
+            "usuario puede modificar ni borrar.",
+          ),
+        ),
+
+        h("section", { className: "legal-section" },
+          h("h3", { className: "legal-heading" }, "4. Uso académico"),
           h("p", null,
             "Esta plataforma se desarrolla en el marco del Taller Integrador de la ",
             "Universidad Privada Antenor Orrego con fines de investigación y formación. ",
@@ -214,7 +270,33 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false 
         ),
       ),
 
-      h("div", { className: "modal-foot" },
+      // Releer el acuerdo no vuelve a pedir la aceptación: las autorizaciones
+      // se cambian en Configuración, donde queda cada decisión registrada.
+      dismissible && h("div", { className: "modal-foot" },
+        h("div", { className: "muted", style: { fontSize: 12.5, lineHeight: 1.55 } },
+          "Puede revisar o revocar sus autorizaciones opcionales y ejercer sus derechos ARCO en ",
+          h("strong", null, "Configuración → Privacidad y datos personales"), "."),
+        h("div", { className: "modal-actions" },
+          h("button", { type: "button", className: "btn btn-secondary", onClick: onClose }, "Cerrar"),
+        ),
+      ),
+
+      !dismissible && h("div", { className: "modal-foot" },
+        h("div", { className: "legal-optional" },
+          h("div", { className: "legal-optional-title" }, "Autorizaciones opcionales"),
+          h("div", { className: "legal-optional-sub" },
+            "No son necesarias para usar el sistema. Puede cambiarlas cuando quiera."),
+          clausulasOpcionales.map((c) =>
+            h("label", { key: c.id, className: "legal-accept legal-accept-optional" },
+              h("input", {
+                type: "checkbox",
+                checked: Boolean(opcionales[c.id]),
+                onChange: handleOpcional(c.id),
+              }),
+              h("span", null, h("strong", null, c.titulo), " — ", c.descripcion),
+            ),
+          ),
+        ),
         h("label", { className: "legal-accept" },
           h("input", {
             ref: checkboxRef,
@@ -228,19 +310,16 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false 
             "estarán desidentificadas conforme a la Ley N.° 29733.",
           ),
         ),
+        error && h("div", { className: "alert alert-error", role: "alert", style: { marginTop: 12 } },
+          h(I.alert, { size: 16 }), h("div", null, error)),
         h("div", { className: "modal-actions" },
-          dismissible && h("button", {
-            type: "button",
-            className: "btn btn-secondary",
-            onClick: onClose,
-          }, "Cerrar"),
           h("button", {
             type: "button",
             className: "btn btn-primary",
             onClick: handleAccept,
-            disabled: !accepted,
+            disabled: !accepted || enviando,
             "aria-label": "Aceptar los términos y continuar",
-          }, h(I.check, { size: 14 }), "Aceptar y continuar"),
+          }, h(I.check, { size: 14 }), enviando ? "Registrando…" : "Aceptar y continuar"),
         ),
       ),
     ),

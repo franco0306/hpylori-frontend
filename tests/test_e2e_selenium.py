@@ -52,9 +52,10 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 BACKEND_URL = "https://franco0306-hpylori-detection.hf.space"
 
-# Puerto del servidor estatico propio de la suite. Se prueba contra el codigo
-# del repositorio, no contra el despliegue publico (que puede ir por detras).
-LOCAL_PORT = int(os.environ.get("E2E_PORT", "8899"))
+# Puerto del servidor de la suite. Se prueba contra el codigo del repositorio,
+# no contra el despliegue publico (que puede ir por detras). Debe ser 5500: es
+# el origen local que la API admite (CORS y verificacion de origen).
+LOCAL_PORT = int(os.environ.get("E2E_PORT", "5500"))
 BASE_URL = os.environ.get("E2E_BASE_URL", "")
 
 HEADED = os.environ.get("E2E_HEADED", "") == "1"
@@ -66,7 +67,7 @@ TEST_PASSWORD = "TallerE2E2026!"
 TEST_FULLNAME = "QA Selenium Taller"
 TEST_PACIENTE = "HC-2026-104"
 
-SAMPLES_DIR = os.path.join(FRONTEND_ROOT, "samples", "img")
+SAMPLES_DIR = os.path.join(FRONTEND_ROOT, "public", "samples", "img")
 VALID_IMAGE = os.path.abspath(os.path.join(SAMPLES_DIR, "POSITIVO", "p144_f000840.jpg"))
 
 # Accesos que ve una cuenta con rol clinico (rol por defecto).
@@ -129,19 +130,22 @@ def arrancar_servidor():
         log(f"Usando frontend indicado por E2E_BASE_URL: {BASE_URL}")
         return BASE_URL, None
 
-    url = f"http://127.0.0.1:{LOCAL_PORT}/index.html"
+    url = f"http://127.0.0.1:{LOCAL_PORT}/"
 
     if not puerto_libre(LOCAL_PORT):
         log(f"Puerto {LOCAL_PORT} ya ocupado; se reutiliza el servidor existente")
         return url, None
 
+    # El frontend se compila con Vite: el servidor de desarrollo transforma
+    # JSX y Tailwind al vuelo (requiere haber hecho `npm install`).
+    npx = "npx.cmd" if os.name == "nt" else "npx"
     proc = subprocess.Popen(
-        [sys.executable, "-m", "http.server", str(LOCAL_PORT), "--bind", "127.0.0.1"],
+        [npx, "vite", "--port", str(LOCAL_PORT), "--host", "127.0.0.1", "--strictPort"],
         cwd=FRONTEND_ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    for _ in range(40):
+    for _ in range(120):
         if not puerto_libre(LOCAL_PORT):
             log(f"Servidor estatico levantado en {url}")
             return url, proc

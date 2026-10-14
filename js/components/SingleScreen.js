@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { I } from "../icons.js";
 import { fmtLatencia } from "../format.js";
 import { SAMPLES } from "../samples.js";
@@ -5,6 +6,7 @@ import { CONFIG } from "../config.js";
 import { predict } from "../api.js";
 import { saveStudy } from "../history.js";
 import { EmptyState, ScanLoader } from "../ui/states.jsx";
+import { AnimatedNumber } from "../ui/cards.jsx";
 import { toast } from "../ui/toast.jsx";
 import { cacheStudyMedia } from "../sessionCache.js";
 
@@ -62,6 +64,8 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   // dejar una barra avanzando sin decir por que.
   const [esperaLarga, setEsperaLarga] = useState(false);
   const [reintentando, setReintentando] = useState(false);
+  // Vista de la imagen tras el análisis: original o con el mapa Grad-CAM.
+  const [vista, setVista] = useState("original");
   const inputRef = useRef(null);
 
   const accept = (f) => {
@@ -84,7 +88,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   };
 
   const analyze = async (opts = {}) => {
-    setPhase("loading"); setProgress(0); setError(null); setResult(null);
+    setPhase("loading"); setProgress(0); setError(null); setResult(null); setVista("original");
     setEsperaLarga(false); setReintentando(false);
     const avisoLento = setTimeout(() => setEsperaLarga(true), TIEMPO_AVISO_ESPERA_MS);
     const t0 = Date.now();
@@ -142,7 +146,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
   const handlePatientChange = (e) => setPatientName(e.target.value);
 
   const reset = () => {
-    setFile(null); setResult(null); setPhase("idle");
+    setFile(null); setResult(null); setPhase("idle"); setVista("original");
     setProgress(0); setError(null); setPatientName(""); setHistorialFallo(null);
   };
 
@@ -333,7 +337,27 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       ? { l: "media", c: "var(--amber-600)" }
       : { l: "baja",  c: "var(--red-600)" };
 
-  return h("div", { className: "content" },
+  const cargando = phase === "loading";
+  const hayGradcam = Boolean(result && result.heatmap_b64);
+  const mostrarGradcam = hayGradcam && vista === "gradcam";
+
+  // Paso actual del flujo: 0 imagen · 1 análisis · 2 resultado.
+  const pasoActual = !file ? 0 : result ? 2 : 1;
+  const PASOS = [
+    { t: "Imagen", d: file ? file.name : "Cargue o elija una muestra" },
+    { t: "Análisis", d: cargando ? "En curso…" : result ? "Completado" : file ? "Listo para iniciar" : "Pendiente" },
+    { t: "Resultado", d: result ? (positive ? "Positivo" : "Negativo") : "Pendiente" },
+  ];
+
+  // Subpasos que se muestran mientras el modelo trabaja.
+  const SUBPASOS = [
+    { t: "Imagen validada", d: "Formato y tamaño correctos", hecho: true },
+    { t: "Clasificando con ResNet50", d: "Análisis de la mucosa gástrica", hecho: progress >= 60 },
+    { t: "Generando mapa Grad-CAM", d: "Regiones que influyen en la decisión", hecho: false },
+  ];
+  const subpasoActivo = progress < 60 ? 1 : 2;
+
+  return h("div", { className: "content analisis" },
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Análisis individual"),
@@ -341,55 +365,89 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
           "Análisis asistido de mucosa gástrica en tiempo real",
         ),
       ),
-      h("button", { className: "btn btn-ghost", onClick: reset, disabled: phase === "loading" },
-        h(I.refresh, { size: 14 }), "Reiniciar"),
+      h("button", { className: "btn btn-secondary", onClick: reset, disabled: cargando || (!file && !result) },
+        h(I.refresh, { size: 14 }), "Nuevo análisis"),
     ),
-    h("div", { style: { display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 20 } },
-      // ===== LEFT =====
+
+    // ── Progreso del flujo ────────────────────────────────────────────────────
+    h("ol", { className: "flujo", "aria-label": "Progreso del análisis" },
+      PASOS.map((p, i) => {
+        const estado = i < pasoActual || (i === 2 && result) ? "hecho"
+          : i === pasoActual ? (cargando && i === 1 ? "en-curso" : "actual") : "pendiente";
+        return h("li", { key: p.t, className: "flujo-paso is-" + estado,
+                         "aria-current": i === pasoActual ? "step" : undefined },
+          h("span", { className: "flujo-num" },
+            estado === "hecho" ? h(I.check, { size: 13 }) : i + 1),
+          h("span", { className: "flujo-txt" },
+            h("span", { className: "flujo-titulo" }, p.t),
+            h("span", { className: "flujo-desc" }, p.d)),
+          i < PASOS.length - 1 && h("span", { className: "flujo-linea", "aria-hidden": true },
+            h(motion.span, {
+              className: "flujo-linea-fill",
+              initial: false,
+              animate: { scaleX: i < pasoActual ? 1 : (cargando && i === 1 ? 0.5 : 0) },
+              transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+            })),
+        );
+      }),
+    ),
+
+    h("div", { className: "analisis-grid" },
+      // ===== IZQUIERDA: imagen =====
       h("div", { className: "card" },
         h("div", { className: "card-head" },
           h("div", null,
-            h("h3", { className: "card-title" }, "1 · Imagen endoscópica"),
-            h("div", { className: "card-sub" }, "JPG/PNG · máx. 10 MB · resolución ≥ 512×512 px"),
+            h("h3", { className: "card-title" }, "Imagen endoscópica"),
+            h("div", { className: "card-sub" }, "JPG o PNG · hasta 10 MB · resolución ≥ 512×512 px"),
           ),
-          file && phase !== "loading" && h("button", {
+          file && !cargando && h("button", {
             className: "btn btn-ghost btn-icon",
-            onClick: reset, title: "Quitar",
+            onClick: reset, title: "Quitar imagen", "aria-label": "Quitar imagen",
           }, h(I.trash, { size: 14 })),
         ),
         h("div", { className: "card-pad" },
           // Identificador del paciente: se captura antes de cargar la imagen
           // para que quede asociado al estudio desde el primer momento.
-          h("div", { className: "field", style: { marginBottom: 16 } },
+          h("div", { className: "paciente-campo" },
             h("label", { className: "field-label", htmlFor: "patient-id" },
               "ID Paciente / Historia Clínica ",
               h("span", { className: "field-optional" }, "(Opcional)"),
             ),
-            h("input", {
-              id: "patient-id",
-              className: "input field-input",
-              type: "text",
-              value: patientName,
-              onChange: handlePatientChange,
-              placeholder: "Ej: HC-2026-104",
-              disabled: phase === "loading",
-              autoComplete: "off",
-              "aria-label": "ID de paciente o historia clínica (opcional)",
-            }),
+            h("div", { className: "input-icon-wrap" },
+              h("span", { className: "input-icon" }, h(I.user, { size: 15 })),
+              h("input", {
+                id: "patient-id",
+                className: "input field-input",
+                type: "text",
+                value: patientName,
+                onChange: handlePatientChange,
+                placeholder: "Ej: HC-2026-104",
+                disabled: cargando,
+                autoComplete: "off",
+                "aria-label": "ID de paciente o historia clínica (opcional)",
+                "aria-describedby": "patient-id-ayuda",
+              }),
+            ),
+            h("div", { id: "patient-id-ayuda", className: "paciente-ayuda" },
+              h(I.shield, { size: 11 }), "Use el código interno; no escriba nombres ni DNI (Ley N.° 29733)."),
           ),
+
           !file ? h("div", null,
             h("div", {
               "data-dropzone": true,
-              className: "dropzone" + (drag ? " active" : ""),
+              className: "dropzone dropzone-compacta" + (drag ? " active" : ""),
               onDragOver: (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; setDrag(true); },
               onDragLeave: (e) => { if (e.currentTarget.contains(e.relatedTarget)) return; setDrag(false); },
               onDrop: (e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); accept(e.dataTransfer.files && e.dataTransfer.files[0]); },
               onClick: () => inputRef.current && inputRef.current.click(),
+              onKeyDown: (e) => { if ((e.key === "Enter" || e.key === " ") && inputRef.current) { e.preventDefault(); inputRef.current.click(); } },
               role: "button",
+              tabIndex: 0,
+              "aria-label": "Cargar imagen endoscópica: arrastre un archivo o pulse para seleccionarlo",
             },
               h("div", { className: "dropzone-icon" }, h(I.upload, { size: 22 })),
-              h("div", { className: "dropzone-title" }, "Arrastra una imagen aquí"),
-              h("div", { className: "dropzone-sub" },
+              h("div", { className: "dropzone-title" }, drag ? "Suelte la imagen aquí" : "Arrastra una imagen aquí"),
+              h("div", { className: "dropzone-sub", style: { marginBottom: 0 } },
                 "o ", h("span", { className: "linklike" }, "selecciona un archivo")),
               h("input", {
                 ref: inputRef, type: "file",
@@ -398,54 +456,71 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 onChange: (e) => accept(e.target.files && e.target.files[0]),
               }),
             ),
-            h("div", { style: { marginTop: 16 } },
-              h("div", { className: "row between", style: { marginBottom: 8 } },
-                h("div", { className: "section-title", style: { marginBottom: 0 } }, "O usa una muestra de prueba"),
+            h("div", { className: "muestras" },
+              h("div", { className: "row between", style: { marginBottom: 10 } },
+                h("div", { className: "section-title", style: { marginBottom: 0 } }, "¿Sin imagen a mano? Use una muestra"),
                 h("div", { className: "row", style: { gap: 6 } },
                   h("span", { className: "badge badge-pos" }, "5 positivos"),
                   h("span", { className: "badge badge-neg" }, "5 negativos"),
                 ),
               ),
-              h("div", { style: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 } },
-                Object.entries(SAMPLES).map(([k, s]) =>
-                  h("button", {
-                    key: k, className: "btn btn-secondary",
+              h("div", { className: "muestras-grid" },
+                Object.entries(SAMPLES).map(([k, s]) => {
+                  const esPos = k.startsWith("pos");
+                  return h("button", {
+                    key: k, type: "button", className: "muestra",
                     onClick: () => useSample(k),
-                    style: { justifyContent: "flex-start", padding: "6px 8px", gap: 6, flexDirection: "column", alignItems: "flex-start" },
+                    title: s.name + " · " + s.label,
+                    "aria-label": "Usar muestra " + s.name + " (" + s.label.toLowerCase() + ")",
                   },
-                    h("img", { src: s.src, style: { width: "100%", height: 56, borderRadius: 4, objectFit: "cover" }, alt: "" }),
-                    h("div", { style: { fontSize: 10, fontWeight: 600, lineHeight: 1.2, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
-                      s.name.replace(".jpg", ""),
-                    ),
-                    h("div", { style: { fontSize: 10, fontWeight: 700, color: k.startsWith("pos") ? "var(--red-600)" : "var(--green-600)" } },
-                      s.label,
-                    ),
-                  )
-                ),
+                    h("img", { src: s.src, alt: "", loading: "lazy" }),
+                    h("span", { className: "muestra-etiqueta " + (esPos ? "is-pos" : "is-neg") },
+                      esPos ? "Positivo" : "Negativo"),
+                    h("span", { className: "muestra-nombre" }, s.name.replace(".jpg", "")),
+                  );
+                }),
               ),
             ),
           ) : h("div", null,
-            h("div", { className: "preview-wrap" },
-              h("img", { src: file.src, alt: file.name }),
-              h("div", { className: "preview-chip" },
-                file.name + " · " + (file.size / 1024 / 1024).toFixed(2) + " MB"),
-            ),
-            h("div", { className: "row between", style: { marginTop: 12 } },
-              h("span", { className: "badge badge-info" }, "Listo para analizar"),
-              h("div", { className: "row", style: { gap: 8 } },
-                h("button", { className: "btn btn-secondary", onClick: reset, disabled: phase === "loading" },
-                  h(I.x, { size: 14 }), "Cambiar"),
-                h("button", {
-                  className: "btn btn-primary",
-                  onClick: () => analyze(),
-                  disabled: phase === "loading",
-                },
-                  phase === "loading" ? h("span", { className: "spinner-sm" }) : h(I.bact, { size: 14 }),
-                  phase === "loading" ? " Analizando…" : " Analizar imagen",
+            // Mientras el modelo trabaja, el escáner recorre la MISMA imagen: no
+            // se duplica en el otro panel.
+            cargando
+              ? h(ScanLoader, { src: file.src, alt: "Imagen en análisis" })
+              : h("div", { className: "preview-wrap" },
+                  h(AnimatePresence, { initial: false, mode: "wait" },
+                    h(motion.img, {
+                      key: mostrarGradcam ? "gradcam" : "original",
+                      src: mostrarGradcam ? result.heatmap_b64 : file.src,
+                      alt: mostrarGradcam ? "Mapa Grad-CAM sobre la imagen" : file.name,
+                      initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 },
+                      transition: { duration: 0.25 },
+                    })),
+                  h("div", { className: "preview-chip" },
+                    file.name + " · " + (file.size / 1024 / 1024).toFixed(2) + " MB"),
+                  hayGradcam && h("div", { className: "preview-toggle", role: "group", "aria-label": "Vista de la imagen" },
+                    ["original", "gradcam"].map((v) => h("button", {
+                      key: v, type: "button",
+                      className: "preview-toggle-btn" + (vista === v ? " is-activo" : ""),
+                      "aria-pressed": vista === v,
+                      onClick: () => setVista(v),
+                    }, v === "original" ? "Original" : "Grad-CAM"))),
                 ),
+
+            // Acciones: la principal destaca; "Cambiar" queda como secundaria.
+            !result && h("div", { className: "analisis-acciones" },
+              h("button", { className: "btn btn-secondary", onClick: reset, disabled: cargando },
+                h(I.x, { size: 14 }), "Cambiar"),
+              h("button", {
+                className: "btn btn-primary btn-analizar",
+                onClick: () => analyze(),
+                disabled: cargando,
+              },
+                cargando ? h("span", { className: "spinner-sm spinner-claro" }) : h(I.bact, { size: 15 }),
+                cargando ? " Analizando…" : " Analizar imagen",
               ),
             ),
           ),
+
           error && h("div", { className: "alert alert-error", style: { marginTop: 16 } },
             h(I.alert, { size: 16 }),
             h("div", null,
@@ -461,58 +536,98 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               }, h(I.refresh, { size: 12 }), "Reintentar"),
             ),
           ),
-          file && phase === "idle" && h("div", { style: { marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" } },
+          // Solo en desarrollo: simular un fallo del servidor.
+          import.meta.env.DEV && file && phase === "idle" && h("div", { style: { marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" } },
             "Demo: ",
             h("span", { className: "linklike", onClick: () => analyze({ forceError: true }) }, "simular timeout API"),
           ),
         ),
       ),
 
-      // ===== RIGHT =====
-      h("div", { className: "card" },
+      // ===== DERECHA: resultado =====
+      h("div", { className: "card analisis-resultado" },
         h("div", { className: "card-head" },
           h("div", null,
-            h("h3", { className: "card-title" }, "2 · Resultado del análisis"),
+            h("h3", { className: "card-title" }, "Resultado del análisis"),
             h("div", { className: "card-sub" }, "Diagnóstico sugerido por IA · requiere validación clínica"),
           ),
           result && h("span", { className: "badge " + (positive ? "badge-pos" : "badge-neg") },
             positive ? "POSITIVO" : "NEGATIVO"),
         ),
         h("div", { className: "card-pad" },
-          phase === "idle" && !result && h("div", { className: "result-empty" },
-            h(EmptyState, {
-              icon: file ? I.bact : I.upload,
-              title: file ? "Imagen lista para analizar" : "Sin resultados aún",
-              description: file
-                ? "Pulse «Analizar imagen» para obtener el diagnóstico sugerido y su mapa Grad-CAM."
-                : "Cargue una imagen endoscópica o elija una muestra de prueba para comenzar.",
-              compact: true,
-            }),
-          ),
-          phase === "loading" && h("div", { style: { textAlign: "center", padding: "4px 0 8px" } },
-            // El haz recorre la imagen que se está analizando: el médico ve que
-            // el sistema trabaja sobre SU imagen, no solo que algo carga.
-            h("div", { style: { marginBottom: 16 } },
-              h(ScanLoader, { src: file && file.src, alt: "Imagen en análisis" })),
-            h("div", { style: { fontWeight: 600 } },
-              reintentando ? "Reintentando el análisis…" : "Analizando imagen endoscópica…"),
-            (esperaLarga || reintentando) && h("div", {
-              style: { fontSize: 12.5, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 },
-              role: "status",
+
+          // Sin imagen: guía de uso en vez de un hueco vacío.
+          !file && !result && !cargando && h("div", { className: "guia" },
+            h("div", { className: "guia-titulo" }, "Cómo funciona"),
+            [
+              { i: I.upload, t: "Cargue la imagen", d: "Arrastre una endoscopía o use una muestra de prueba." },
+              { i: I.bact,   t: "Analice con IA",   d: "ResNet50 clasifica la mucosa en unos segundos." },
+              { i: I.heat,   t: "Revise el Grad-CAM", d: "Compruebe qué regiones sustentan el resultado." },
+            ].map((g, k) => h(motion.div, {
+              key: g.t, className: "guia-paso",
+              initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 },
+              transition: { delay: 0.08 * k, duration: 0.35 },
             },
-              "Iniciando el motor de inferencia en la nube y generando el mapa ",
-              "Grad-CAM. La primera petición tras un rato de inactividad puede ",
-              "tardar cerca de un minuto."),
-            h("div", { className: "muted", style: { fontSize: 12.5, marginTop: 4 } },
-              "Procesando mucosa y generando mapa de zonas relevantes"),
-            h("div", { className: "progress", style: { marginTop: 16 } },
+              h("span", { className: "guia-icono" }, h(g.i, { size: 17 })),
+              h("div", null,
+                h("div", { className: "guia-paso-titulo" }, (k + 1) + ". " + g.t),
+                h("div", { className: "guia-paso-desc" }, g.d)),
+            )),
+            h("div", { className: "guia-nota" },
+              h(I.info, { size: 13 }),
+              "El resultado es orientativo y no reemplaza la confirmación por ureasa, histología o test del aliento."),
+          ),
+
+          // Imagen cargada, aún sin analizar.
+          file && phase === "idle" && !result && h(EmptyState, {
+            icon: I.bact,
+            title: "Imagen lista para analizar",
+            description: "Pulse «Analizar imagen» para obtener el diagnóstico sugerido y su mapa Grad-CAM.",
+            compact: true,
+          }),
+
+          // Fallo: el detalle está junto a la imagen; aquí, cómo seguir.
+          phase === "error" && !result && h(EmptyState, {
+            icon: I.alert, tone: "warn", compact: true,
+            title: "No se pudo completar el análisis",
+            description: "Revise el aviso junto a la imagen y vuelva a intentarlo.",
+            action: h("button", { className: "btn btn-secondary", onClick: () => analyze() },
+              h(I.refresh, { size: 14 }), "Reintentar"),
+          }),
+
+          // En curso: subpasos con su estado.
+          cargando && h("div", { className: "progreso-analisis", role: "status", "aria-live": "polite" },
+            h("div", { className: "progreso-titulo" },
+              reintentando ? "Reintentando el análisis…" : "Analizando imagen endoscópica…"),
+            h("ul", { className: "subpasos" },
+              SUBPASOS.map((s, k) => {
+                const estado = s.hecho ? "hecho" : k === subpasoActivo ? "activo" : "pendiente";
+                return h("li", { key: s.t, className: "subpaso is-" + estado },
+                  h("span", { className: "subpaso-marca" },
+                    estado === "hecho" ? h(I.check, { size: 12 })
+                      : estado === "activo" ? h("span", { className: "spinner-sm" }) : null),
+                  h("div", null,
+                    h("div", { className: "subpaso-titulo" }, s.t),
+                    h("div", { className: "subpaso-desc" }, s.d)),
+                );
+              })),
+            h("div", { className: "progress", style: { marginTop: 18 } },
               h("div", { className: "progress-fill", style: { width: progress + "%" } })),
             h("div", { className: "row between", style: { marginTop: 8, fontSize: 11.5, color: "var(--ink-500)" } },
               h("span", { className: "mono" }, progress + "%"),
-              h("span", null, "Suele tardar menos de 2 segundos"),
+              h("span", null, esperaLarga ? "El motor se está activando…" : "Suele tardar unos segundos"),
             ),
+            (esperaLarga || reintentando) && h("div", { className: "alert alert-info", style: { marginTop: 14, textAlign: "left" } },
+              h(I.info, { size: 14 }),
+              h("div", null,
+                "El servidor de análisis estaba en reposo y se está iniciando. ",
+                "La primera petición tras un rato de inactividad puede tardar cerca de un minuto.")),
           ),
-          phase === "done" && result && h("div", null,
+
+          phase === "done" && result && h(motion.div, {
+            initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 },
+            transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+          },
             h("div", { className: "verdict " + (positive ? "verdict-pos" : "verdict-neg") },
               h("div", null,
                 h("div", { className: "verdict-label" }, "Diagnóstico sugerido"),
@@ -525,7 +640,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 h("div", {
                   className: "verdict-prob",
                   style: { color: positive ? "var(--red-600)" : "var(--green-600)" },
-                }, (probShown * 100).toFixed(1) + "%"),
+                }, h(AnimatedNumber, { value: probShown * 100, decimals: 1, suffix: "%" })),
                 h("div", { style: { fontSize: 11, color: "var(--ink-500)" } },
                   "Probabilidad"),
               ),
@@ -539,7 +654,11 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
                 }, h(I.shield, { size: 10 }), " Confianza " + confTier.l),
               ),
               h("div", { className: "confbar" },
-                h("div", { className: "confbar-fill", style: { width: (conf * 100) + "%", background: confTier.c } })),
+                h(motion.div, {
+                  className: "confbar-fill", style: { background: confTier.c },
+                  initial: { width: 0 }, animate: { width: (conf * 100) + "%" },
+                  transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 },
+                })),
             ),
             h("div", { className: "metrics metrics-2", style: { marginTop: 16 } },
               h("div", { className: "metric" },
@@ -575,19 +694,21 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
               h(I.info, { size: 16 }),
               h("div", null,
                 h("strong", null, "Hallazgo positivo sugerido. "),
-                "Confirmar con prueba de ureasa, histología o test del aliento. Verifica el Grad-CAM antes de comunicar al paciente.",
+                "Confirmar con prueba de ureasa, histología o test del aliento. Verifique el Grad-CAM antes de comunicar al paciente.",
               ),
             ),
-            h("div", { className: "row", style: { marginTop: 16, gap: 8 } },
+            h("div", { className: "resultado-acciones" },
               h("button", {
                 className: "btn btn-primary",
                 onClick: downloadReport,
                 "aria-label": "Descargar informe clínico en PDF",
               }, h(I.dl, { size: 14 }), "Descargar Informe Clínico (PDF)"),
               h("button", {
-                className: "btn btn-ghost",
+                className: "btn btn-secondary",
                 onClick: () => onViewHeatmap && onViewHeatmap(result, file),
               }, h(I.heat, { size: 14 }), "Ver Grad-CAM"),
+              h("button", { className: "btn btn-ghost", onClick: reset },
+                h(I.plus, { size: 14 }), "Analizar otra imagen"),
             ),
           ),
         ),

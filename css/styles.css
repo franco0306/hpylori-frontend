@@ -1350,3 +1350,42 @@ img.brand-mark {
 .manual-pregunta summary { cursor: pointer; padding: 12px 0; font-weight: 600; font-size: 13.5px; color: var(--ink-900); list-style-position: inside; }
 .manual-pregunta p { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--ink-700); }
 @media (max-width: 900px) { .manual-grid { grid-template-columns: 1fr; } }
+
+/* ── Diagnóstico confirmado ── */
+.confirmacion { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ink-100); }
+.confirmacion-estado { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; border: 1px solid; }
+.confirmacion-estado.is-acierto { background: var(--green-50); border-color: var(--green-100); color: var(--green-600); }
+.confirmacion-estado.is-fallo { background: var(--amber-50); border-color: #FDE68A; color: var(--amber-600); }
+.confirmacion-titulo { font-weight: 600; font-size: 13px; color: var(--ink-900); }
+.confirmacion-sub { font-size: 12px; color: var(--ink-500); line-height: 1.45; }
+.confirmacion-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.confirmacion-pos { background: var(--red-50); color: var(--red-600); border: 1px solid var(--red-100); }
+.confirmacion-pos:hover:not(:disabled) { background: var(--red-100); }
+.confirmacion-neg { background: var(--green-50); color: var(--green-600); border: 1px solid var(--green-100); }
+.confirmacion-neg:hover:not(:disabled) { background: var(--green-100); }
+
+/* ── Modelo y reentrenamiento ── */
+.modelo-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 20px; align-items: start; }
+.modelo-metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.modelo-metrica { padding: 12px; border-radius: 10px; background: var(--ink-50); border: 1px solid var(--ink-200); }
+.modelo-metrica-titulo { font-size: 11.5px; color: var(--ink-500); font-weight: 600; }
+.modelo-metrica-valor { font-family: "IBM Plex Mono", monospace; font-size: 20px; font-weight: 600; margin-top: 4px; color: var(--ink-900); }
+.modelo-metrica-ayuda { font-size: 11px; color: var(--ink-400); margin-top: 2px; }
+.modelo-nota { font-size: 12px; color: var(--ink-500); line-height: 1.5; margin-top: 10px; }
+.modelo-version-actual { display: flex; gap: 12px; align-items: center; }
+.modelo-version-icono { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--blue-50); color: var(--blue-700); border: 1px solid var(--blue-100); }
+.modelo-version-nombre { font-weight: 700; font-size: 14px; color: var(--ink-900); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modelo-barra { height: 8px; border-radius: 999px; background: var(--ink-100); overflow: hidden; }
+.modelo-barra-fill { height: 100%; border-radius: 999px; transition: width .5s ease; }
+.modelo-progreso { margin-top: 8px; padding: 12px; border-radius: 10px; background: var(--blue-50); border: 1px solid var(--blue-100); font-size: 13px; }
+.modelo-versiones { padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+.modelo-version { border: 1px solid var(--ink-200); border-radius: 12px; padding: 14px 16px; }
+.modelo-version.is-activa { border-color: var(--blue-600); box-shadow: 0 0 0 3px var(--blue-100); }
+.modelo-version .modelo-nota { margin-top: 2px; }
+.modelo-comparacion { margin-top: 10px; }
+.modelo-comparacion td, .modelo-comparacion th { padding: 8px 10px; }
+@media (max-width: 1180px) { .modelo-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 900px) { .modelo-grid, .modelo-metricas { grid-template-columns: 1fr; } }
+.comparativa-confirmacion { margin-top: 4px; }
+.comparativa-confirmacion .confirmacion-botones { max-width: 420px; }

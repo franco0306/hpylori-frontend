@@ -20,16 +20,18 @@ const h = React.createElement;
 const CLAUSULA_LABEL = {
   terminos: "Términos de uso",
   archivo_imagenes: "Guardar imágenes",
-  uso_investigacion: "Mejorar el modelo",
+  uso_investigacion: "Estadísticas (versión anterior)",
+  mejora_modelo: "Mejorar el modelo",
 };
 
 // Textos en lenguaje llano para las opciones: el servidor guarda la redacción
 // legal; aquí se explica qué significa para el médico.
 const TEXTOS_OPCIONALES = {
-  uso_investigacion: {
+  mejora_modelo: {
     titulo: "Ayudar a mejorar el modelo",
-    desc: "Permite usar los resultados de sus análisis —sin imágenes, sin códigos de paciente " +
-          "y sin su nombre— para mejorar el sistema. Puede cambiarlo cuando quiera.",
+    desc: "Cuando registre el resultado confirmado de un estudio (ureasa, biopsia…), esa imagen " +
+          "y ese resultado se usarán para reentrenar el modelo y que acierte más. Nunca se usa " +
+          "el código del paciente ni su nombre. Puede cambiarlo cuando quiera.",
   },
 };
 

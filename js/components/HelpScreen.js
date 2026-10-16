@@ -56,6 +56,16 @@ const GUIA = [
     ],
   },
   {
+    id: "confirmar", icono: "check", titulo: "Registrar el diagnóstico confirmado",
+    pasos: [
+      "Cuando tenga el resultado de la ureasa, la biopsia u otra prueba, abra el estudio en «Historial de estudios».",
+      "En «Diagnóstico confirmado», elija el método y pulse «Resultó positivo» o «Resultó negativo».",
+      "El estudio mostrará «Confirmado» si el sistema acertó o «No coincide» si no.",
+      "Si se equivocó al registrarlo, use «Cambiar» o «Quitar».",
+      "Si activó «Ayudar a mejorar el modelo» en Configuración, ese caso se usará para reentrenar el sistema.",
+    ],
+  },
+  {
     id: "configuracion", icono: "cog", titulo: "Ajustar el sistema",
     pasos: [
       "En «Configuración» puede activar el modo oscuro, cómodo en salas con poca luz.",
@@ -77,6 +87,10 @@ const PREGUNTAS = [
   {
     q: "Escribí el código de otra forma, ¿se creó otro paciente?",
     a: "No. «hc 2026-104», «HC2026104» y «HC-2026-104» son el mismo paciente. Si escribe un código parecido a uno que ya tiene, el sistema le pregunta «¿Quiso decir…?».",
+  },
+  {
+    q: "¿Para qué sirve registrar el diagnóstico confirmado?",
+    a: "Para saber si el sistema acierta con sus pacientes reales y, si usted lo autoriza, para reentrenarlo con esos casos. El administrador revisa cada versión nueva antes de ponerla en uso.",
   },
   {
     q: "El primer análisis del día tarda mucho.",

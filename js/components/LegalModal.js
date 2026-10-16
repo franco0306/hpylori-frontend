@@ -23,9 +23,9 @@ export const LEGAL_VERSION = "2026-10-v3";
 
 // Respaldo si el servidor no devolvió el catálogo de cláusulas.
 const OPCIONALES_POR_DEFECTO = [
-  { id: "uso_investigacion", titulo: "Uso anonimizado para investigación",
-    descripcion: "Incluir los metadatos de mis análisis, sin imágenes ni código de paciente, " +
-                 "en el conjunto anonimizado para mejorar el modelo." },
+  { id: "mejora_modelo", titulo: "Ayudar a mejorar el modelo",
+    descripcion: "Usar las imágenes de mis estudios con diagnóstico confirmado para reentrenar " +
+                 "el modelo, sin código de paciente ni datos de mi cuenta." },
 ];
 
 const STORAGE_PREFIX = "endoscan.legal.";

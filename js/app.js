@@ -18,6 +18,7 @@ import { AdminScreen }         from "./screens/AdminScreen.js";
 import { LegalModal, hasAcceptedLegal } from "./components/LegalModal.js";
 import { getConsents }         from "./privacy.js";
 import { BitacoraScreen }      from "./screens/BitacoraScreen.js";
+import { ModeloScreen }        from "./screens/ModeloScreen.js";
 import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
 import { CONFIG }              from "./config.js";
@@ -175,6 +176,7 @@ function App() {
     "admin":           ["EndoScan AI", "Administración", "Panel Admin"],
     "admin-auditoria": ["EndoScan AI", "Administración", "Auditoría y Cuotas"],
     "admin-bitacora":  ["EndoScan AI", "Administración", "Bitácora y privacidad"],
+    "admin-modelo":    ["EndoScan AI", "Administración", "Modelo y reentrenamiento"],
   })[screen] || ["EndoScan AI"];
 
   const render = () => {
@@ -195,7 +197,8 @@ function App() {
       // esta comprobación solo evita mostrar la pantalla por error.
       case "admin":
       case "admin-auditoria":
-      case "admin-bitacora": {
+      case "admin-bitacora":
+      case "admin-modelo": {
         if (getRole(user) !== ROLES.ADMIN) {
           return h("div", { className: "content" },
             h("div", { className: "page-header" },
@@ -209,6 +212,7 @@ function App() {
         // El umbral vive solo en Configuración: el panel administra el sistema,
         // no calibra el diagnóstico.
         if (screen === "admin-bitacora") return h(BitacoraScreen, {});
+        if (screen === "admin-modelo") return h(ModeloScreen, {});
         const section = screen === "admin-auditoria" ? "auditoria" : "panel";
         return h(AdminScreen, { section, user });
       }

@@ -5,6 +5,7 @@ import { getStudies, deleteStudy, clearHistory } from "../history.js";
 import { EmptyState, SkeletonRows } from "../ui/states.jsx";
 import { toast } from "../ui/toast.jsx";
 import { normalizarCodigo } from "../validacion.js";
+import { ConfirmacionPanel, InsigniaConfirmacion } from "./ConfirmacionPanel.js";
 
 const React = window.React;
 const { useState, useCallback, useEffect } = React;
@@ -111,6 +112,7 @@ function StudyRow({ s, idx, selected, onSelect, onDelete }) {
         h("span", { style: { fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.fileName),
         h("span", { className: "badge " + (isPos ? "badge-pos" : "badge-neg"), style: { flexShrink: 0 } },
           isPos ? "POSITIVO" : "NEGATIVO"),
+        h(InsigniaConfirmacion, { estudio: s }),
       ),
       h("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 3 } },
         h("span", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } }, fmtLatencia(s.latencia_ms) + " ms"),
@@ -192,7 +194,7 @@ function PatientCard({ name, studies, selected, onSelect, onDelete }) {
 const FOCUSABLE_HIST =
   'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-function ModalComparativo({ estudio, onCerrar }) {
+function ModalComparativo({ estudio, onCerrar, onConfirmacion }) {
   const dialogo = React.useRef(null);
   const isPos = estudio.clase === "Positivo";
 
@@ -305,6 +307,11 @@ function ModalComparativo({ estudio, onCerrar }) {
             "Resultado sugerido por IA: requiere validación clínica.",
           ),
         ),
+
+        // El médico suele llegar aquí con el resultado de la biopsia en mano:
+        // registrarlo en el mismo lugar donde ve la imagen evita un paso.
+        h("div", { className: "comparativa-confirmacion" },
+          h(ConfirmacionPanel, { key: estudio.id, estudio, onCambio: onConfirmacion })),
       ),
     ),
   );
@@ -340,6 +347,12 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
     setStudies(fresh);
     setSelected((sel) => sel ? fresh.find((s) => s.id === sel.id) || null : null);
   }, []);
+
+  const handleConfirmacion = (actualizado) => {
+    setStudies((prev) => prev.map((x) => (x.id === actualizado.id ? { ...x, ...actualizado } : x)));
+    setSelected((sel) => (sel && sel.id === actualizado.id ? { ...sel, ...actualizado } : sel));
+    setComparativa((c) => (c && c.id === actualizado.id ? { ...c, ...actualizado } : c));
+  };
 
   const handleDelete = async (id) => {
     await deleteStudy(id);
@@ -533,7 +546,7 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
             // Thumbnail
             (function () {
               const media = getStudyMedia(selected.id);
-              const src = (media && media.src) || selected.thumbnail;
+              const src = selected.image_url || (media && media.src) || selected.thumbnail;
 
               if (src) {
                 return h("div", { style: { marginBottom: 16 } },
@@ -561,11 +574,12 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
 
             // Inspección Grad-CAM: solo tiene sentido si la imagen sigue en memoria.
             (function () {
-              const disponible = hasStudyMedia(selected.id);
+              const enSesion = hasStudyMedia(selected.id);
+              const disponible = enSesion || Boolean(selected.gradcam_url);
               return h("button", {
                 className: "btn xai-action " + (disponible ? "btn-secondary" : "btn-ghost"),
                 style: { width: "100%", marginBottom: 14 },
-                onClick: () => handleOpenHeatmap(selected),
+                onClick: () => (enSesion ? handleOpenHeatmap(selected) : setComparativa(selected)),
                 disabled: !disponible,
                 title: disponible
                   ? "Ver el mapa de activación de este estudio"
@@ -620,19 +634,16 @@ export function HistoryScreen({ onViewHeatmap, onNavigate }) {
               ),
             ),
 
-            h("div", { className: "alert alert-info", style: { marginTop: 16 } },
-              h(I.info, { size: 14 }),
-              h("div", { style: { fontSize: 12 } },
-                hasStudyMedia(selected.id)
-                  ? "El mapa Grad-CAM de este estudio sigue disponible mientras no cierres la sesión."
-                  : "El mapa Grad-CAM no se almacena en el historial. Vuelve a analizar la imagen para generarlo."),
-            ),
+            // Resultado de la prueba de referencia: mide si el sistema acertó y,
+            // con autorización del médico, alimenta el reentrenamiento.
+            h(ConfirmacionPanel, { key: selected.id, estudio: selected, onCambio: handleConfirmacion }),
           ),
         ),
 
     comparativa && h(ModalComparativo, {
       estudio: comparativa,
       onCerrar: () => setComparativa(null),
+      onConfirmacion: handleConfirmacion,
     }),
   );
 }

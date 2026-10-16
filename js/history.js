@@ -7,11 +7,19 @@
 import { CONFIG } from "./config.js";
 import { authFetch } from "./auth.js";
 
+// El servidor guarda la hora en UTC sin zona ("2026-10-16T18:29:23"). Sin la
+// "Z", el navegador la leería como hora local y en Perú cada estudio
+// aparecería cinco horas adelantado.
+function conZona(iso) {
+  return !iso || /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z";
+}
+
 export async function getStudies() {
   try {
     const res = await authFetch(CONFIG.STUDIES_PATH);
     if (!res.ok) return [];
-    return await res.json();
+    const estudios = await res.json();
+    return estudios.map((s) => ({ ...s, timestamp: conZona(s.timestamp), created_at: conZona(s.created_at) }));
   } catch {
     return [];
   }
@@ -101,4 +109,26 @@ export async function saveStudiesBatch(resultados, paciente = "") {
     throw fallo;
   }
   return res.json();
+}
+
+async function enviarConfirmacion(id, metodo, cuerpo) {
+  const res = await authFetch(CONFIG.STUDIES_PATH + "/" + id + "/confirmacion", {
+    method: metodo,
+    headers: cuerpo ? { "Content-Type": "application/json" } : undefined,
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof datos.detail === "string" ? datos.detail : "HTTP_" + res.status);
+  }
+  return { ...datos, timestamp: conZona(datos.timestamp), created_at: conZona(datos.created_at) };
+}
+
+/** Registra el diagnóstico confirmado por una prueba de referencia. */
+export function confirmStudy(id, clase, metodo) {
+  return enviarConfirmacion(id, "PUT", { clase, metodo });
+}
+
+export function unconfirmStudy(id) {
+  return enviarConfirmacion(id, "DELETE");
 }

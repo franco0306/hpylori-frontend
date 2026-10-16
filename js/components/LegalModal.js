@@ -19,7 +19,7 @@ const h = React.createElement;
 // Al cambiar el texto legal se sube la versión: quien aceptó la anterior
 // vuelve a ver el acuerdo en lugar de quedar vinculado en silencio.
 // Debe coincidir con `VERSION_TERMINOS` del backend.
-export const LEGAL_VERSION = "2026-10-v3";
+export const LEGAL_VERSION = "2026-10-v4";
 
 // Respaldo si el servidor no devolvió el catálogo de cláusulas.
 const OPCIONALES_POR_DEFECTO = [
@@ -205,7 +205,7 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false,
           h("p", null,
             "En cumplimiento de la ",
             h("strong", null, "Ley N.° 29733, Ley de Protección de Datos Personales"),
-            ", y su reglamento (D.S. N.° 003-2013-JUS), el titular de la cuenta se ",
+            ", y su Reglamento (D.S. N.° 016-2024-JUS), el titular de la cuenta se ",
             "obliga a lo siguiente:",
           ),
           h("ul", { className: "legal-list" },
@@ -234,6 +234,12 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false,
               h("strong", null, "privado y cifrado"),
               ": solo se ven con enlaces temporales emitidos para su cuenta, y se borran al ",
               "eliminar el estudio.",
+            ),
+            h("li", null,
+              h("strong", null, "Servidores fuera del Perú. "),
+              "La aplicación y sus datos se alojan en servicios en la nube (GitHub, Hugging Face ",
+              "y Supabase) con servidores fuera del territorio nacional. Este flujo transfronterizo ",
+              "tiene como única finalidad operar el sistema, y la información viaja y se guarda cifrada.",
             ),
             h("li", null,
               h("strong", null, "Derechos ARCO. "),

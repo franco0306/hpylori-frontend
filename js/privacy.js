@@ -76,11 +76,16 @@ export async function downloadMyData() {
   setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
 }
 
+// `label` es el término legal (lo ve el administrador); `sencillo`, lo que ve el médico.
 export const ARCO_TIPOS = [
-  { id: "acceso",        label: "Acceso",        hint: "Saber qué datos míos guarda el sistema" },
-  { id: "rectificacion", label: "Rectificación", hint: "Corregir un dato inexacto" },
-  { id: "cancelacion",   label: "Cancelación",   hint: "Eliminar mi cuenta y mis datos" },
-  { id: "oposicion",     label: "Oposición",     hint: "Oponerme a un tratamiento concreto" },
+  { id: "acceso",        label: "Acceso",        sencillo: "Saber qué datos míos guarda el sistema",
+    hint: "Recibirá el detalle de lo que el sistema tiene de su cuenta." },
+  { id: "rectificacion", label: "Rectificación", sencillo: "Corregir un dato mío",
+    hint: "Por ejemplo, su nombre o su correo están mal." },
+  { id: "cancelacion",   label: "Cancelación",   sencillo: "Eliminar mi cuenta y mis datos",
+    hint: "Se borran su cuenta y su historial. No se puede deshacer." },
+  { id: "oposicion",     label: "Oposición",     sencillo: "Que no usen mis datos para algo concreto",
+    hint: "Indique qué uso de sus datos no quiere que se haga." },
 ];
 
 export const ARCO_ESTADO_LABEL = {

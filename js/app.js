@@ -36,7 +36,6 @@ const h = React.createElement;
 // la interfaz clínica siempre infiere con ResNet50.
 const CLINICAL_MODEL = findModel(CLINICAL_MODEL_ID);
 
-const DEFAULT_PREFS = { threshold: 0.5 };
 
 // ── App ──────────────────────────────────────────────────────────────────────
 function App() {
@@ -49,7 +48,6 @@ function App() {
   const [legalOpen, setLegalOpen]         = useState(false);
   const [legalForced, setLegalForced]     = useState(false);
   const [consents, setConsents]           = useState(null);
-  const [prefs, setPrefs]                 = useState(DEFAULT_PREFS);
   const [heatmapResult, setHeatmapResult] = useState(null);
   const [screen, setScreen]               = useState("single");
   // Menú lateral en pantalla estrecha. En escritorio está siempre visible; por
@@ -127,36 +125,9 @@ function App() {
     return () => { mounted = false; };
   }, [authed]);
 
-  // Carga las preferencias guardadas al autenticarse.
-  // `modelId` del backend se ignora deliberadamente: la UI clínica es ResNet50.
-  useEffect(() => {
-    if (!authed) return;
-    let mounted = true;
-    authFetch(CONFIG.SETTINGS_PATH).then(async (res) => {
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!mounted) return;
-      setPrefs({ threshold: data.threshold });
-    }).catch(() => {});
-    return () => { mounted = false; };
-  }, [authed]);
-
   const viewHeatmap = (result, file) => {
     setHeatmapResult({ result, file });
     setScreen("heatmap");
-  };
-
-  // Actualiza preferencias en estado y las guarda en el backend
-  const handleSavePrefs = async (newPrefs) => {
-    setPrefs(newPrefs);
-    try {
-      await authFetch(CONFIG.SETTINGS_PATH, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        // El backend conserva el campo modelId; lo enviamos siempre fijo.
-        body: JSON.stringify({ ...newPrefs, modelId: CLINICAL_MODEL_ID }),
-      });
-    } catch { /* UI ya actualizada de forma optimista */ }
   };
 
   const handleOpenLegal = () => { setLegalForced(false); setLegalOpen(true); };
@@ -180,7 +151,6 @@ function App() {
     clearStudyMedia();   // las imágenes retenidas no sobreviven a la sesión
     setAuthed(false);
     setUser(null);
-    setPrefs(DEFAULT_PREFS);
     setConsents(null);
     setAuthView("login");
   };
@@ -210,12 +180,12 @@ function App() {
   const render = () => {
     switch (screen) {
       case "dashboard": return h(Dashboard,      { onNavigate: setScreen, onViewHeatmap: viewHeatmap, user });
-      case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap, threshold: prefs.threshold });
+      case "single":    return h(SingleScreen,   { model, onViewHeatmap: viewHeatmap });
       case "heatmap":   return h(HeatmapScreen,  { heatmapResult, xaiPalette, onNewAnalysis: () => setScreen("single") });
-      case "batch":     return h(BatchScreen,    { model, threshold: prefs.threshold });
+      case "batch":     return h(BatchScreen,    { model });
       case "history":   return h(HistoryScreen,  { onViewHeatmap: viewHeatmap, onNavigate: setScreen });
       case "settings":  return h(SettingsScreen, {
-        prefs, onSave: handleSavePrefs, theme, onToggleTheme: toggleTheme,
+        theme, onToggleTheme: toggleTheme,
         xaiPalette, onChangePalette: handleChangePalette,
         consents, onConsentsChange: setConsents,
       });

@@ -639,52 +639,46 @@ def sc_batch_export_csv(driver):
 
 # ── Escenario 17: Sensibilidad del analisis ──────────────────────────────────
 def sc_settings_sensibilidad(driver):
+    """Configuracion solo con preferencias de uso: sin umbrales ni jerga de IA."""
     ir_a(driver, "Configuración")
     wait_visible(driver, By.XPATH, "//h1[contains(text(),'Configuración')]", timeout=15)
 
     cuerpo = driver.find_element(By.TAG_NAME, "body").text
-    if "P(positivo)" in cuerpo:
-        raise AssertionError("La pantalla sigue mostrando jerga estadistica 'P(positivo)'")
-    if driver.find_elements(By.CSS_SELECTOR, ".content select"):
-        raise AssertionError("Configuracion sigue exponiendo un selector de modelos")
+    for jerga in ("P(positivo)", "Sensibilidad del análisis", "umbral", "Umbral"):
+        if jerga in cuerpo:
+            raise AssertionError(f"Configuracion sigue mostrando ajustes tecnicos: {jerga!r}")
+    if driver.find_elements(By.CSS_SELECTOR, ".preset-btn"):
+        raise AssertionError("Configuracion sigue exponiendo niveles de sensibilidad")
 
-    presets = driver.find_elements(By.CSS_SELECTOR, ".preset-btn")
-    if len(presets) != 3:
-        raise AssertionError(f"Se esperaban 3 niveles de sensibilidad, hay {len(presets)}")
-
-    presets[0].click()
+    interruptor = wait_visible(driver, By.CSS_SELECTOR, "button.switch[aria-label='Modo oscuro']")
+    antes = interruptor.get_attribute("aria-checked")
+    interruptor.click()
     time.sleep(0.5)
-    lectura = driver.find_element(By.CSS_SELECTOR, ".tier-box").text.split("\n")[0]
+    despues = interruptor.get_attribute("aria-checked")
+    interruptor.click()            # se deja como estaba
+    if antes == despues:
+        raise AssertionError("El modo oscuro no cambia al pulsar el interruptor")
 
-    guardar = wait_visible(driver, By.XPATH, "//button[contains(.,'Guardar cambios')]")
-    WebDriverWait(driver, 10).until(lambda d: guardar.is_enabled())
-    guardar.click()
-    wait_visible(driver, By.XPATH, "//button[contains(text(),'Guardado')]", timeout=15)
-
-    return f"Sensibilidad cambiada a '{lectura}' y guardada en la cuenta"
-
+    return "Configuracion de experiencia de usuario: modo oscuro y colores del mapa, sin umbrales"
 
 # ── Escenario 18: Ficha tecnica del motor activo ─────────────────────────────
 def sc_manual_motor(driver):
+    """El manual es una guia de uso paso a paso, sin fichas tecnicas."""
     ir_a(driver, "Manual de usuario")
-    wait_visible(driver, By.CSS_SELECTOR, ".engine-card", timeout=15)
+    wait_visible(driver, By.CSS_SELECTOR, ".manual-seccion", timeout=15)
 
-    nombre = driver.find_element(By.CSS_SELECTOR, ".engine-name").text.strip()
-    if nombre != "ResNet-50":
-        raise AssertionError(f"Motor inesperado en la ficha tecnica: {nombre!r}")
+    titulos = [e.text.strip() for e in driver.find_elements(By.CSS_SELECTOR, ".manual-titulo")]
+    for esperado in ("Analizar una imagen", "Analizar varias imágenes (lote)",
+                     "Consultar el historial", "Preguntas frecuentes"):
+        if esperado not in titulos:
+            raise AssertionError(f"Falta la seccion {esperado!r} en el manual: {titulos}")
 
     cuerpo = driver.find_element(By.TAG_NAME, "body").text
-    for obsoleto in ("VGG16", "MobileNetV3", "EfficientNet", "DenseNet", "GoogLeNet"):
-        if obsoleto in cuerpo:
-            raise AssertionError(f"El manual sigue mostrando la tabla multi-modelo ({obsoleto})")
+    for tecnico in ("AUC", "umbral", "VGG16", "MobileNetV3", "Especificidad"):
+        if tecnico in cuerpo:
+            raise AssertionError(f"El manual sigue mostrando contenido tecnico: {tecnico!r}")
 
-    valores = [e.text for e in driver.find_elements(By.CSS_SELECTOR, ".engine-metric-value")]
-    esperados = ["84.95 %", "89.82 %", "0.9524", "< 200 ms"]
-    if valores != esperados:
-        raise AssertionError(f"Metricas incorrectas.\n  esperado: {esperados}\n  obtenido: {valores}")
-
-    return f"Ficha unica de {nombre} con metricas {valores}"
-
+    return f"Guia de uso con {len(titulos)} secciones: {', '.join(titulos)}"
 
 # ── Escenario 19: Consola sin errores ────────────────────────────────────────
 def sc_consola_limpia(driver):

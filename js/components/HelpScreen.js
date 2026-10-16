@@ -2,292 +2,179 @@ import { I } from "../icons.js";
 
 const h = window.React.createElement;
 
-const FAQS = [
+// Manual de usuario: SOLO cómo usar el sistema, paso a paso y en lenguaje
+// llano. La pantalla y el PDF descargable salen del mismo contenido (GUIA y
+// PREGUNTAS), así nunca dicen cosas distintas.
+
+const GUIA = [
   {
-    q: "¿Puedo usar EndoScan AI para diagnosticar pacientes?",
-    a: "No. Es una herramienta de apoyo educativo e investigativo. Todo resultado debe ser interpretado por un médico habilitado.",
+    id: "entrar", icono: "lock", titulo: "Entrar al sistema",
+    pasos: [
+      "Escriba su correo y su contraseña. El ojo del campo le deja ver lo que escribió.",
+      "Si su cuenta es de administrador, escriba además el código de 6 dígitos de su app Google Authenticator.",
+      "La primera vez, lea y acepte los términos de uso.",
+    ],
   },
   {
-    q: "¿Qué imágenes acepta el sistema?",
-    a: "Imágenes endoscópicas del tracto gastrointestinal superior en JPEG o PNG, máximo 10 MB. No está validado para radiografías ni otras modalidades.",
+    id: "analizar", icono: "upload", titulo: "Analizar una imagen",
+    pasos: [
+      "Vaya a «Análisis individual».",
+      "En «ID Paciente» escriba el código de historia clínica. Si el paciente ya existe, el sistema se lo sugiere: elíjalo de la lista.",
+      "Si el paciente no tiene historia clínica, elija «Generar código anónimo» y anote ese código en su ficha.",
+      "Arrastre la imagen endoscópica (JPG o PNG) o pulse «selecciona un archivo». También puede usar una muestra de prueba.",
+      "Pulse «Analizar imagen». En unos segundos verá el resultado.",
+    ],
   },
   {
-    q: "¿El sistema guarda mis imágenes?",
-    a: "Solo guarda una miniatura (96×72 px) en el historial de tu cuenta. La imagen original en alta resolución no se almacena.",
+    id: "resultado", icono: "bact", titulo: "Revisar el resultado",
+    pasos: [
+      "Arriba verá el diagnóstico sugerido (positivo o negativo) y su probabilidad.",
+      "Sobre la imagen, el botón «Original / Grad-CAM» muestra en qué zonas se fijó el sistema: rojo y amarillo, las que más pesaron; azul, las que menos.",
+      "Con «Descargar Informe Clínico (PDF)» obtiene el informe para la historia del paciente.",
+      "El estudio se guarda solo en su historial, con la imagen y el mapa.",
+      "Para el siguiente paciente, pulse «Analizar otra imagen».",
+    ],
   },
   {
-    q: "¿Qué hago si el resultado no coincide con mi impresión clínica?",
-    a: "Priorice su criterio profesional. Confirme con métodos diagnósticos estándar: prueba de aliento, antígeno fecal o biopsia.",
+    id: "lote", icono: "layers", titulo: "Analizar varias imágenes (lote)",
+    pasos: [
+      "Vaya a «Procesamiento por lote».",
+      "Elija el paciente: todas las imágenes del lote se guardarán en su historial.",
+      "Arrastre hasta 50 imágenes de la misma endoscopía.",
+      "Pulse «Procesar». Si aparece «Pausa breve», espere: el lote continúa solo.",
+      "Al terminar puede descargar el resumen con «Exportar Resumen Clínico (CSV)».",
+    ],
   },
   {
-    q: "¿Cuándo usar un umbral bajo vs. alto?",
-    a: "Umbral bajo (ej. 0.25): más sensibilidad, útil para screening. Umbral alto (ej. 0.70): más especificidad, útil cuando se busca alta certeza diagnóstica.",
+    id: "historial", icono: "history", titulo: "Consultar el historial",
+    pasos: [
+      "Vaya a «Historial de estudios».",
+      "Busque por código de paciente o filtre por resultado y fecha.",
+      "Con «Por paciente» verá todos los estudios de cada paciente agrupados.",
+      "Pulse un estudio para ver su imagen y su mapa Grad-CAM lado a lado.",
+      "El icono de la papelera elimina un estudio y sus imágenes.",
+    ],
+  },
+  {
+    id: "configuracion", icono: "cog", titulo: "Ajustar el sistema",
+    pasos: [
+      "En «Configuración» puede activar el modo oscuro, cómodo en salas con poca luz.",
+      "También puede elegir los colores del mapa de calor, incluida una opción apta para daltonismo.",
+      "En «Mis datos y privacidad» puede descargar sus datos o pedir que se corrijan o borren.",
+    ],
   },
 ];
 
-function Section({ title, children }) {
-  return h("div", { style: { marginBottom: 28 } },
-    h("h2", { style: { fontSize: 15, fontWeight: 700, color: "var(--ink-800)", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid var(--ink-100)" } }, title),
-    children,
-  );
-}
+const PREGUNTAS = [
+  {
+    q: "Mi paciente no tiene historia clínica, ¿qué pongo?",
+    a: "Pulse «Generar código anónimo» en el campo de paciente. El sistema crea un código (por ejemplo EP-7K3F2): anótelo en la ficha del paciente para encontrarlo después.",
+  },
+  {
+    q: "¿Por qué no puedo escribir el nombre o el DNI del paciente?",
+    a: "Por la Ley de Protección de Datos Personales, el sistema solo guarda el código de historia clínica. El nombre queda en el hospital, nunca en EndoScan.",
+  },
+  {
+    q: "Escribí el código de otra forma, ¿se creó otro paciente?",
+    a: "No. «hc 2026-104», «HC2026104» y «HC-2026-104» son el mismo paciente. Si escribe un código parecido a uno que ya tiene, el sistema le pregunta «¿Quiso decir…?».",
+  },
+  {
+    q: "El primer análisis del día tarda mucho.",
+    a: "Es normal: el servidor se activa tras un rato sin uso y puede tardar cerca de un minuto. Los siguientes análisis tardan pocos segundos.",
+  },
+  {
+    q: "Olvidé mi contraseña.",
+    a: "Pida al administrador del sistema que la restablezca desde el Panel Admin.",
+  },
+  {
+    q: "Mi cuenta dice «bloqueada durante 15 minutos».",
+    a: "Ocurre tras 5 intentos fallidos, para proteger su cuenta. Espere 15 minutos y vuelva a intentarlo con calma; use el ojo del campo para comprobar la contraseña.",
+  },
+  {
+    q: "¿Dónde veo las imágenes de un análisis anterior?",
+    a: "En «Historial de estudios»: pulse el estudio y verá la imagen y su mapa Grad-CAM.",
+  },
+];
 
 function openPrintManual() {
+  const secciones = GUIA.map((g, i) => `
+    <h2>${i + 1}. ${g.titulo}</h2>
+    <ol>${g.pasos.map((p) => `<li>${p}</li>`).join("")}</ol>`).join("");
+  const preguntas = PREGUNTAS.map((f) => `<p><strong>${f.q}</strong><br>${f.a}</p>`).join("");
+
   const win = window.open("", "_blank");
+  if (!win) return;
   win.document.write(`<!DOCTYPE html><html lang="es"><head>
 <meta charset="UTF-8">
-<title>Manual de Usuario — EndoScan AI</title>
+<title>Manual de usuario — EndoScan AI</title>
 <style>
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; max-width: 800px; margin: 0 auto; padding: 32px; line-height: 1.6; }
-  h1 { font-size: 22px; color: #1a1a1a; } h2 { font-size: 15px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 28px; }
-  h3 { font-size: 13px; color: #444; margin-top: 16px; }
-  .disclaimer { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 14px 16px; margin: 16px 0; font-size: 11px; }
-  .disclaimer strong { display: block; font-size: 13px; margin-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 11px; }
-  th { background: #f5f5f5; padding: 6px 10px; text-align: left; border: 1px solid #ddd; font-weight: 600; }
-  td { padding: 6px 10px; border: 1px solid #ddd; }
-  tr:nth-child(even) td { background: #fafafa; }
-  ol, ul { padding-left: 20px; } li { margin-bottom: 4px; }
+  body { font-family: Arial, sans-serif; font-size: 12.5px; color: #1a1a1a; max-width: 760px; margin: 0 auto; padding: 32px; line-height: 1.6; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #555; margin-top: 0; }
+  h2 { font-size: 15px; color: #1e3a8a; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 26px; }
+  ol { padding-left: 20px; } li { margin-bottom: 6px; }
   .footer { margin-top: 40px; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }
   @media print { body { padding: 16px; } }
 </style></head><body>
-<h1>Manual de Usuario — EndoScan AI</h1>
-<p><em>Sistema de Apoyo Diagnóstico para Detección de Helicobacter pylori · Versión 1.0 · Junio 2026</em></p>
-
-<div class="disclaimer">
-  <strong>⚠ ADVERTENCIA CLÍNICA — LEER ANTES DE USAR</strong>
-  EndoScan AI es una herramienta de <strong>apoyo diagnóstico</strong>. No reemplaza el juicio clínico profesional ni constituye un diagnóstico médico definitivo.<br><br>
-  Un resultado "H. pylori Negativo" no descarta la infección. Un resultado "H. pylori Positivo" debe confirmarse mediante métodos diagnósticos estándar (prueba de aliento con urea, antígeno fecal, histología).<br><br>
-  El sistema no ha sido aprobado por ningún organismo regulatorio (ANMAT, FDA, CE) para uso diagnóstico autónomo. Su uso es exclusivamente educativo e investigativo.
-</div>
-
-<h2>1. Introducción</h2>
-<p>EndoScan AI analiza imágenes endoscópicas del tracto gastrointestinal superior para estimar la probabilidad de infección por <em>H. pylori</em> mediante redes neuronales convolucionales (CNN). Genera además mapas de calor <strong>Grad-CAM</strong> que señalan las regiones de la imagen relevantes para la predicción.</p>
-<p><strong>URL:</strong> https://franco0306.github.io/hpylori-frontend/ &nbsp;|&nbsp; <strong>Requisitos:</strong> Chrome/Firefox/Edge 90+, conexión a internet, resolución mínima 1280×720 px.</p>
-
-<h2>2. Modelos disponibles</h2>
-<table>
-  <tr><th>Modelo</th><th>Sensibilidad</th><th>Especificidad</th><th>F1</th><th>AUC-ROC</th><th>Umbral</th></tr>
-  <tr><td><strong>ResNet50 (recomendado)</strong></td><td>84.95 %</td><td>89.82 %</td><td>83.76 %</td><td>0.9524</td><td>0.255</td></tr>
-  <tr><td>MobileNetV3</td><td>83.82 %</td><td>87.25 %</td><td>81.83 %</td><td>0.9363</td><td>0.350</td></tr>
-  <tr><td>EfficientNet-B0</td><td>81.67 %</td><td>89.12 %</td><td>81.53 %</td><td>0.9287</td><td>0.400</td></tr>
-  <tr><td>VGG16</td><td>63.88 %</td><td>—</td><td>69.96 %</td><td>0.8460</td><td>0.500</td></tr>
-</table>
-<p><em>Nota: sensibilidad del 84.95 % implica que ~1 de cada 7 pacientes con H. pylori podría no ser detectado.</em></p>
-
-<h2>3. Registro e inicio de sesión</h2>
-<p>Al ingresar se muestra la pantalla de login. Para crear una cuenta: clic en "Regístrate", completar email, contraseña (mín. 6 caracteres) y confirmar. La sesión se mantiene activa 7 días. Las contraseñas se almacenan con hash bcrypt; nunca en texto plano.</p>
-
-<h2>4. Panel principal (Dashboard)</h2>
-<p>Muestra: total de estudios realizados, porcentaje de positivos/negativos, modelo activo y accesos directos a las funciones principales.</p>
-
-<h2>5. Análisis individual</h2>
-<ol>
-  <li>Ir a <strong>Diagnóstico → Análisis individual</strong></li>
-  <li>Cargar la imagen (arrastrar o clic · JPEG/PNG · máx. 10 MB)</li>
-  <li>Ingresar nombre/ID del paciente (opcional)</li>
-  <li>Seleccionar modelo de IA (por defecto: ResNet50)</li>
-  <li>Clic en <strong>"Analizar imagen"</strong></li>
-</ol>
-<p>El sistema devuelve: diagnóstico, probabilidad (0–100 %), umbral, modelo utilizado y latencia en ms. Una probabilidad cercana al 50 % indica alta incertidumbre.</p>
-
-<h2>6. Visualización Grad-CAM</h2>
-<p>Luego del análisis, clic en <strong>"Ver Grad-CAM"</strong>. El mapa de calor muestra las regiones que influyeron en la predicción:</p>
-<ul>
-  <li>🔴 Rojo/naranja: alta relevancia para el modelo</li>
-  <li>🟡 Amarillo: relevancia moderada</li>
-  <li>🔵 Azul/frío: baja relevancia</li>
-</ul>
-<p><em>Advertencia: el mapa indica relevancia para el modelo, no necesariamente relevancia clínica real. No usar como evidencia diagnóstica independiente.</em></p>
-
-<h2>7. Descarga de informe PDF del estudio</h2>
-<p>Luego del análisis individual, clic en <strong>"Descargar informe PDF"</strong>. El navegador abre el diálogo de impresión; seleccionar "Guardar como PDF". El informe incluye: imagen original, Grad-CAM con leyenda, resultado, probabilidad, métricas del modelo y datos del paciente.</p>
-
-<h2>8. Procesamiento por lote</h2>
-<p>Ir a <strong>Diagnóstico → Procesamiento por lote</strong>, cargar múltiples imágenes y clic en "Analizar todas". Los resultados se muestran en tabla. Límite recomendado: 20 imágenes por lote.</p>
-
-<h2>9. Historial de estudios</h2>
-<p>Almacena todos los análisis en la nube, accesibles desde cualquier dispositivo. Permite: filtrar por resultado o paciente, ver detalle/Grad-CAM de estudios anteriores, eliminar estudios individuales o limpiar el historial completo. La vista "Por paciente" muestra resumen por paciente con tasa de positividad.</p>
-
-<h2>10. Comparativa de modelos</h2>
-<p>Ir a <strong>IA → Comparativa de modelos</strong>, cargar una imagen y clic en "Comparar todos". Útil para casos ambiguos: la concordancia entre múltiples modelos puede indicar mayor confiabilidad.</p>
-
-<h2>11. Configuración</h2>
-<table>
-  <tr><th>Parámetro</th><th>Descripción</th><th>Por defecto</th></tr>
-  <tr><td>Modelo por defecto</td><td>Arquitectura CNN a usar en cada análisis</td><td>ResNet50</td></tr>
-  <tr><td>Umbral de decisión</td><td>Probabilidad mínima para clasificar como Positivo</td><td>0.5 (50 %)</td></tr>
-</table>
-<p>Los cambios se guardan en la cuenta del usuario y persisten entre sesiones.</p>
-
-<h2>12. Preguntas frecuentes</h2>
-<p><strong>¿Puedo usar EndoScan AI para diagnosticar pacientes?</strong><br>No. Es una herramienta educativa e investigativa. Todo resultado debe ser interpretado por un médico habilitado.</p>
-<p><strong>¿Qué hago si el resultado no coincide con mi impresión clínica?</strong><br>Priorice su criterio profesional y confirme con métodos estándar (prueba de aliento, antígeno fecal, biopsia).</p>
-<p><strong>¿Cuándo usar umbral bajo vs. alto?</strong><br>Umbral bajo (ej. 0.25): más sensibilidad, útil para screening. Umbral alto (ej. 0.70): más especificidad, útil cuando se busca alta certeza diagnóstica.</p>
-<p><strong>¿Mis datos están seguros?</strong><br>Contraseñas almacenadas con hash bcrypt. Comunicaciones por HTTPS. Historial solo accesible con las credenciales de la cuenta.</p>
-
-<div class="disclaimer" style="margin-top:32px;">
-  <strong>Disclaimer legal</strong>
-  EndoScan AI es un prototipo académico desarrollado en el marco del Taller Integrador de Ingeniería. No cuenta con aprobación regulatoria para uso clínico. El uso de esta herramienta es de exclusiva responsabilidad del usuario. Los desarrolladores no asumen responsabilidad por decisiones clínicas basadas en los resultados del sistema.
-</div>
-
-<div class="footer">EndoScan AI v1.0 · Junio 2026 · francoalessandro0306@gmail.com</div>
+<h1>Manual de usuario — EndoScan AI</h1>
+<p class="sub">Guía paso a paso para el médico</p>
+${secciones}
+<h2>${GUIA.length + 1}. Preguntas frecuentes</h2>
+${preguntas}
+<div class="footer">EndoScan AI · Manual de usuario</div>
 </body></html>`);
   win.document.close();
   setTimeout(() => win.print(), 400);
 }
 
 export function HelpScreen() {
-  return h("div", { className: "content" },
+  return h("div", { className: "content manual" },
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Manual de usuario"),
-        h("p", { className: "page-sub" }, "DO-002 · Guía para gastroenterólogos · EndoScan AI v1.0"),
+        h("p", { className: "page-sub" }, "Cómo usar EndoScan AI, paso a paso"),
       ),
-      h("button", {
-        className: "btn btn-primary",
-        onClick: openPrintManual,
-        style: { display: "flex", alignItems: "center", gap: 6 },
-      },
-        h(I.dl, { size: 15 }),
-        "Descargar PDF",
-      ),
+      h("button", { className: "btn btn-secondary", onClick: openPrintManual },
+        h(I.dl, { size: 15 }), "Descargar PDF"),
     ),
 
-    h("div", { className: "alert", style: { background: "var(--yellow-50,#fffbeb)", border: "1px solid var(--yellow-300,#fcd34d)", borderRadius: 8, padding: "14px 16px", marginBottom: 24, display: "flex", gap: 12, alignItems: "flex-start" } },
-      h(I.alert, { size: 18, style: { color: "#d97706", flexShrink: 0, marginTop: 2 } }),
-      h("div", null,
-        h("div", { style: { fontWeight: 700, marginBottom: 4, color: "#92400e" } }, "ADVERTENCIA CLÍNICA — LEER ANTES DE USAR"),
-        h("div", { style: { fontSize: 13, color: "#78350f", lineHeight: 1.6 } },
-          "EndoScan AI es una herramienta de ",
-          h("strong", null, "apoyo diagnóstico"),
-          ". No reemplaza el juicio clínico profesional ni constituye un diagnóstico médico definitivo. Un resultado negativo no descarta la infección; un resultado positivo debe confirmarse con métodos estándar (prueba de aliento, antígeno fecal, histología). El sistema no tiene aprobación regulatoria (ANMAT, FDA, CE) para uso diagnóstico autónomo.",
-        ),
-      ),
+    // Índice: salta a cada tarea.
+    h("nav", { className: "manual-indice", "aria-label": "Contenido del manual" },
+      GUIA.map((g) => h("a", { key: g.id, href: "#manual-" + g.id, className: "manual-chip",
+                               onClick: (e) => { e.preventDefault();
+                                 const el = document.getElementById("manual-" + g.id);
+                                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } },
+        h(I[g.icono], { size: 13 }), g.titulo)),
+      h("a", { href: "#manual-preguntas", className: "manual-chip",
+               onClick: (e) => { e.preventDefault();
+                 const el = document.getElementById("manual-preguntas");
+                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } },
+        h(I.info, { size: 13 }), "Preguntas frecuentes"),
     ),
 
-    h("div", { style: { display: "grid", gap: 20 } },
-
-      h("div", { className: "card card-pad" },
-        h(Section, { title: "Ficha técnica del motor activo" },
-          h("div", { className: "engine-card" },
-            h("div", { className: "engine-head" },
-              h("div", { className: "engine-mark", "aria-hidden": true }, h(I.cube, { size: 20 })),
-              h("div", null,
-                h("div", { className: "engine-name" }, "ResNet-50"),
-                h("div", { className: "engine-role" }, "Motor Clínico de Alta Especificidad"),
-              ),
-              h("span", { className: "badge badge-info" }, "Motor único"),
-            ),
-            h("div", { className: "engine-metrics" },
-              [
-                ["Sensibilidad",  "84.95 %", "Detecta ~85 de cada 100 casos positivos"],
-                ["Especificidad", "89.82 %", "Descarta correctamente ~90 de cada 100 negativos"],
-                ["AUC-ROC",       "0.9524",  "Capacidad global de discriminación"],
-                ["Tiempo medio",  "< 200 ms", "Por imagen de luz blanca (WLI)"],
-              ].map(([label, value, hint]) =>
-                h("div", { key: label, className: "engine-metric" },
-                  h("div", { className: "engine-metric-label" }, label),
-                  h("div", { className: "engine-metric-value" }, value),
-                  h("div", { className: "engine-metric-hint" }, hint),
-                ),
-              ),
-            ),
+    h("div", { className: "manual-grid" },
+      GUIA.map((g, i) =>
+        h("section", { key: g.id, id: "manual-" + g.id, className: "card card-pad manual-seccion" },
+          h("div", { className: "manual-cabecera" },
+            h("span", { className: "manual-icono" }, h(I[g.icono], { size: 18 })),
+            h("div", null,
+              h("div", { className: "manual-num" }, "Paso " + (i + 1)),
+              h("h2", { className: "manual-titulo" }, g.titulo)),
           ),
-          h("p", { className: "muted", style: { marginTop: 12, fontSize: 12, lineHeight: 1.6 } },
-            "Métricas obtenidas sobre el conjunto de validación de imágenes endoscópicas de luz blanca. ",
-            "Una sensibilidad del 84.95 % implica que ~1 de cada 7 pacientes con H. pylori podría no ser detectado: ",
-            "un resultado negativo no descarta la infección.",
-          ),
-        ),
-      ),
+          h("ol", { className: "manual-pasos" },
+            g.pasos.map((p, k) => h("li", { key: k }, p))),
+        )),
+    ),
 
-      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 } },
-
-        h("div", { className: "card card-pad" },
-          h(Section, { title: "Análisis individual" },
-            h("ol", { style: { paddingLeft: 18, margin: 0, fontSize: 13, lineHeight: 2 } },
-              ["Ir a Diagnóstico → Análisis individual",
-               "Cargar imagen (JPEG/PNG, máx. 10 MB)",
-               "Ingresar nombre/ID del paciente (opcional)",
-               'Clic en "Analizar imagen"',
-               "Ver resultado, probabilidad y Grad-CAM",
-              ].map((s, i) => h("li", { key: i }, s)),
-            ),
-          ),
-        ),
-
-        h("div", { className: "card card-pad" },
-          h(Section, { title: "Interpretación del resultado" },
-            h("div", { style: { fontSize: 13, lineHeight: 1.8 } },
-              h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Diagnóstico:"), ' "H. pylori Positivo" o "H. pylori Negativo"'),
-              h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Probabilidad:"), " 0–100 % de que la imagen sea positiva"),
-              h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Umbral:"), " valor de corte configurable en Configuración"),
-              h("p", { style: { margin: 0, color: "var(--ink-500)", fontSize: 12 } },
-                "Probabilidad cercana al 50 % = alta incertidumbre del modelo. Confirmar clínicamente."),
-            ),
-          ),
-        ),
-
-        h("div", { className: "card card-pad" },
-          h(Section, { title: "Grad-CAM — mapa de calor" },
-            h("div", { style: { fontSize: 13, lineHeight: 1.8 } },
-              [
-                { color: "#ef4444", label: "Rojo/naranja", desc: "Alta relevancia para el modelo" },
-                { color: "#eab308", label: "Amarillo",     desc: "Relevancia moderada" },
-                { color: "#3b82f6", label: "Azul/frío",   desc: "Baja relevancia" },
-              ].map((c) =>
-                h("div", { key: c.label, style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
-                  h("span", { style: { width: 12, height: 12, borderRadius: "50%", background: c.color, flexShrink: 0 } }),
-                  h("span", null, h("strong", null, c.label), " — ", c.desc),
-                ),
-              ),
-              h("p", { style: { margin: "10px 0 0", color: "var(--ink-500)", fontSize: 12 } },
-                "El mapa indica relevancia para el modelo, no necesariamente zona de interés clínico real."),
-            ),
-          ),
-        ),
-
-        h("div", { className: "card card-pad" },
-          h(Section, { title: "Umbral de decisión" },
-            h("div", { style: { fontSize: 13, lineHeight: 1.8 } },
-              h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Umbral bajo (ej. 0.25):"), " mayor sensibilidad. Detecta más positivos pero aumenta falsos positivos. Ideal para ", h("em", null, "screening.")),
-              h("p", { style: { margin: "0 0 8px" } },
-                h("strong", null, "Umbral alto (ej. 0.70):"), " mayor especificidad. Menos falsos positivos. Ideal cuando se busca ", h("em", null, "alta certeza.")),
-              h("p", { style: { margin: 0, color: "var(--ink-500)", fontSize: 12 } },
-                "Umbral óptimo validado para ResNet50: 0.255. Configurable en Configuración del sistema."),
-            ),
-          ),
-        ),
-      ),
-
-      h("div", { className: "card card-pad" },
-        h(Section, { title: "Preguntas frecuentes" },
-          h("div", { style: { display: "grid", gap: 16 } },
-            FAQS.map((f) =>
-              h("div", { key: f.q },
-                h("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 } }, f.q),
-                h("div", { style: { fontSize: 13, color: "var(--ink-600)", lineHeight: 1.6 } }, f.a),
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      h("div", { className: "card card-pad", style: { background: "var(--ink-50)", border: "1px solid var(--ink-100)" } },
-        h("div", { style: { fontSize: 12, color: "var(--ink-500)", lineHeight: 1.7 } },
-          h("strong", { style: { display: "block", marginBottom: 4, color: "var(--ink-700)" } }, "Disclaimer legal"),
-          "EndoScan AI es un prototipo académico desarrollado en el marco del Taller Integrador de Ingeniería. ",
-          "No cuenta con aprobación regulatoria para uso clínico. El uso de esta herramienta es de exclusiva responsabilidad del usuario. ",
-          "Los desarrolladores no asumen responsabilidad por decisiones clínicas basadas en los resultados del sistema. ",
-          h("br", null),
-          "Contacto técnico: francoalessandro0306@gmail.com",
-        ),
-      ),
+    h("section", { id: "manual-preguntas", className: "card card-pad", style: { marginTop: 20 } },
+      h("div", { className: "manual-cabecera" },
+        h("span", { className: "manual-icono" }, h(I.info, { size: 18 })),
+        h("h2", { className: "manual-titulo" }, "Preguntas frecuentes")),
+      h("div", { className: "manual-preguntas" },
+        PREGUNTAS.map((f) =>
+          h("details", { key: f.q, className: "manual-pregunta" },
+            h("summary", null, f.q),
+            h("p", null, f.a)))),
     ),
   );
 }

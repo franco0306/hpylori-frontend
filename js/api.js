@@ -55,11 +55,9 @@ async function realPredict(file, opts = {}, esReintento = false) {
   }
   fd.append("model_id", modelId);
 
-  // Umbral personalizado: si viene en opts lo enviamos; el backend lo aplicará
-  // en lugar de su valor por defecto (THRESHOLDS dict).
-  if (opts.threshold !== undefined && opts.threshold !== null) {
-    fd.append("threshold", String(opts.threshold));
-  }
+  // Sin umbral: el servidor aplica el validado para ResNet50 (0.255), el que
+  // prioriza no dejar pasar infecciones. Antes la configuración enviaba 0.5 y
+  // el sistema detectaba menos de lo que mostraron las pruebas.
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.REQUEST_TIMEOUT_MS);

@@ -19,13 +19,10 @@ const h = React.createElement;
 // Al cambiar el texto legal se sube la versión: quien aceptó la anterior
 // vuelve a ver el acuerdo en lugar de quedar vinculado en silencio.
 // Debe coincidir con `VERSION_TERMINOS` del backend.
-export const LEGAL_VERSION = "2026-10-v2";
+export const LEGAL_VERSION = "2026-10-v3";
 
 // Respaldo si el servidor no devolvió el catálogo de cláusulas.
 const OPCIONALES_POR_DEFECTO = [
-  { id: "archivo_imagenes", titulo: "Archivar mis imágenes analizadas",
-    descripcion: "Guardar la imagen endoscópica y su mapa Grad-CAM en almacenamiento privado " +
-                 "para volver a verlas desde el historial." },
   { id: "uso_investigacion", titulo: "Uso anonimizado para investigación",
     descripcion: "Incluir los metadatos de mis análisis, sin imágenes ni código de paciente, " +
                  "en el conjunto anonimizado para mejorar el modelo." },
@@ -230,13 +227,13 @@ export function LegalModal({ open, user, onAccept, onClose, dismissible = false,
               "e informado del paciente, que el profesional debe recabar y custodiar.",
             ),
             h("li", null,
-              h("strong", null, "Almacenamiento mínimo. "),
-              "La base de datos conserva únicamente metadatos del análisis —clase, probabilidad, ",
-              "latencia, código de paciente y fecha—. Las imágenes solo se archivan si usted lo ",
-              "autoriza expresamente abajo; en ese caso se guardan en un almacenamiento ",
+              h("strong", null, "Historial de estudios. "),
+              "De cada análisis se guarda la imagen endoscópica, su mapa Grad-CAM, el resultado ",
+              "y el código de paciente, para que pueda revisarlo después. Las imágenes van a un ",
+              "almacenamiento ",
               h("strong", null, "privado y cifrado"),
-              " al que únicamente se accede con enlaces temporales emitidos para su cuenta. ",
-              "Sin esa autorización, la imagen solo existe mientras dure la sesión.",
+              ": solo se ven con enlaces temporales emitidos para su cuenta, y se borran al ",
+              "eliminar el estudio.",
             ),
             h("li", null,
               h("strong", null, "Derechos ARCO. "),

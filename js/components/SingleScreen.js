@@ -50,7 +50,7 @@ function describirFalloPredict(err) {
 }
 
 
-export function SingleScreen({ model, onViewHeatmap, threshold }) {
+export function SingleScreen({ model, onViewHeatmap }) {
   const [file,        setFile]        = useState(null);
   const [drag,        setDrag]        = useState(false);
   const [phase,       setPhase]       = useState("idle");
@@ -118,7 +118,7 @@ export function SingleScreen({ model, onViewHeatmap, threshold }) {
       const payload = file._raw || file;
       // Sin `modelId`: la capa de API fija ResNet50 para toda la interfaz clínica.
       const res = await predict(payload, {
-        positive, heat, threshold, forceError: opts.forceError,
+        positive, heat, forceError: opts.forceError,
         onReintento: () => setReintentando(true),
       });
       clearInterval(iv); clearTimeout(avisoLento);

@@ -16,7 +16,7 @@ const h = React.createElement;
 // Veces que se respeta una pausa por cuota antes de dar la imagen por fallida.
 const MAX_ESPERAS = 4;
 
-export function BatchScreen({ model, threshold }) {
+export function BatchScreen({ model }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -136,10 +136,8 @@ export function BatchScreen({ model, threshold }) {
           fd.append("file", blob, it.name || "demo.jpg");
         }
 
+        // Sin umbral: el servidor aplica el validado del modelo (0.255).
         fd.append("model_id", CLINICAL_MODEL_ID);
-        if (threshold !== undefined && threshold !== null) {
-          fd.append("threshold", String(threshold));
-        }
 
         const start = performance.now();
         const data = await inferir(fd);

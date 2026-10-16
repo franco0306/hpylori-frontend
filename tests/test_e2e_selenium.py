@@ -50,7 +50,7 @@ RESULTS_DIR = os.path.join(HERE, "e2e_results")
 DOWNLOAD_DIR = os.path.join(RESULTS_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-BACKEND_URL = "https://franco0306-hpylori-detection.hf.space"
+BACKEND_URL = os.environ.get("E2E_BACKEND_URL", "https://franco0306-hpylori-detection.hf.space")
 
 # Puerto del servidor de la suite. Se prueba contra el codigo del repositorio,
 # no contra el despliegue publico (que puede ir por detras). Debe ser 5500: es
@@ -270,7 +270,8 @@ def sc_legal_agreement(driver):
     if aceptar.is_enabled():
         raise AssertionError("El boton de aceptacion deberia exigir marcar la casilla")
 
-    driver.find_element(By.CSS_SELECTOR, ".legal-accept input").click()
+    # La casilla obligatoria; la opcional («Ayudar a mejorar el modelo») queda sin marcar.
+    driver.find_element(By.CSS_SELECTOR, ".legal-accept:not(.legal-accept-optional) input").click()
     time.sleep(0.4)
     aceptar = [b for b in driver.find_elements(By.CSS_SELECTOR, ".modal button") if "Aceptar" in b.text][0]
     if not aceptar.is_enabled():
@@ -500,37 +501,25 @@ def sc_gradcam(driver):
 
 # ── Escenario 11: Gating de Grad-CAM por cache de sesion ─────────────────────
 def sc_gradcam_gating(driver):
-    ir_a(driver, "Historial de estudios")
-    filas = WebDriverWait(driver, 20).until(
-        lambda d: d.find_elements(By.CSS_SELECTOR, ".history-row"))
-    filas[0].click()
-    time.sleep(0.8)
-
-    boton = wait_visible(driver, By.CSS_SELECTOR, ".xai-action", timeout=10)
-    if not boton.is_enabled():
-        raise AssertionError("El estudio recien analizado deberia permitir abrir su Grad-CAM")
-    if "Ver Grad-CAM" not in boton.text:
-        raise AssertionError(f"Texto inesperado en el boton habilitado: {boton.text!r}")
-
-    # Al recargar se pierde la cache en memoria: el mismo estudio deja de tener
-    # imagen y el acceso debe bloquearse con su explicacion.
+    """Las imagenes se archivan: tras recargar, el estudio conserva imagen y Grad-CAM."""
     driver.refresh()
     wait_visible(driver, By.CSS_SELECTOR, "aside.sidebar", timeout=60)
     ir_a(driver, "Historial de estudios")
     filas = WebDriverWait(driver, 20).until(
         lambda d: d.find_elements(By.CSS_SELECTOR, ".history-row"))
     filas[0].click()
-    time.sleep(0.8)
+
+    wait_visible(driver, By.CSS_SELECTOR, ".modal-comparativa", timeout=15)
+    WebDriverWait(driver, 20).until(lambda d: d.execute_script(
+        "return Array.from(document.querySelectorAll('.modal-comparativa img'))"
+        ".filter(function (i) { return i.complete && i.naturalWidth > 0; }).length") >= 2)
+    driver.find_element(By.CSS_SELECTOR, "[aria-label='Cerrar la inspección']").click()
+    time.sleep(0.6)
 
     boton = wait_visible(driver, By.CSS_SELECTOR, ".xai-action", timeout=10)
-    if boton.is_enabled():
-        raise AssertionError("Tras recargar, el Grad-CAM deberia quedar deshabilitado")
-    if boton.get_attribute("title") != TOOLTIP_XAI:
-        raise AssertionError(f"Tooltip incorrecto: {boton.get_attribute('title')!r}")
-    if boton.get_attribute("aria-label") != TOOLTIP_XAI:
-        raise AssertionError("El tooltip no se expone como aria-label")
-
-    return f"Habilitado con cache de sesion; deshabilitado tras recargar con tooltip '{TOOLTIP_XAI}'"
+    if not boton.is_enabled() or "Ver Grad-CAM" not in boton.text:
+        raise AssertionError("El estudio archivado deberia permitir abrir su Grad-CAM tras recargar")
+    return "Tras recargar, el estudio muestra su imagen y su mapa Grad-CAM archivados"
 
 
 # ── Escenario 12: Busqueda en el historial ───────────────────────────────────
@@ -680,6 +669,86 @@ def sc_manual_motor(driver):
 
     return f"Guia de uso con {len(titulos)} secciones: {', '.join(titulos)}"
 
+# ── Escenarios de Taller Integrador 2 ────────────────────────────────────────
+def sc_historial_por_paciente(driver):
+    """Los estudios del mismo codigo de paciente se agrupan."""
+    ir_a(driver, "Historial de estudios")
+    click_by_text(driver, "button", "Por paciente")
+    time.sleep(1.0)
+    cuerpo = driver.find_element(By.CSS_SELECTOR, ".content").text
+    if TEST_PACIENTE not in cuerpo:
+        raise AssertionError(f"La vista por paciente no muestra {TEST_PACIENTE}")
+    click_by_text(driver, "button", "Cronológico")
+    return f"Estudios agrupados bajo el paciente {TEST_PACIENTE}"
+
+
+def sc_confirmar_diagnostico(driver):
+    """El medico registra el resultado de la prueba de referencia de un estudio."""
+    ir_a(driver, "Historial de estudios")
+    filas = WebDriverWait(driver, 20).until(
+        lambda d: d.find_elements(By.CSS_SELECTOR, ".history-row"))
+    filas[0].click()
+    wait_visible(driver, By.CSS_SELECTOR, ".modal-comparativa .confirmacion", timeout=15)
+    driver.find_element(By.XPATH, "//*[contains(@class,'modal-comparativa')]//button[normalize-space()='Resultó positivo']").click()
+    estado = wait_visible(driver, By.CSS_SELECTOR, ".modal-comparativa .confirmacion-estado", timeout=15)
+    texto = estado.text
+    driver.find_element(By.CSS_SELECTOR, "[aria-label='Cerrar la inspección']").click()
+    time.sleep(0.8)
+    insignia = driver.find_elements(By.XPATH, "//*[contains(@class,'history-row')]//*[contains(., 'Confirmado') or contains(., 'No coincide')]")
+    if not insignia:
+        raise AssertionError("La fila del estudio no muestra la insignia de confirmacion")
+    return f"Diagnostico confirmado registrado: {texto.splitlines()[0]}"
+
+
+def sc_descargar_mis_datos(driver):
+    """Derecho de acceso: el titular descarga lo que el sistema guarda de su cuenta."""
+    # El lote y los analisis anteriores agotan la cuota de 30 peticiones por
+    # minuto de la cuenta (RQ-23); se espera a que se renueve.
+    time.sleep(61)
+    for viejo in os.listdir(DOWNLOAD_DIR):
+        if viejo.startswith("endoscan_mis_datos"):
+            os.remove(os.path.join(DOWNLOAD_DIR, viejo))
+    ir_a(driver, "Configuración")
+    antes = set(os.listdir(DOWNLOAD_DIR))
+    click_by_text(driver, "button", "Descargar mis datos")
+    WebDriverWait(driver, 20).until(lambda d: [f for f in os.listdir(DOWNLOAD_DIR)
+                                              if f not in antes and f.endswith(".json")])
+    nuevo = [f for f in os.listdir(DOWNLOAD_DIR) if f not in antes and f.endswith(".json")][0]
+    with open(os.path.join(DOWNLOAD_DIR, nuevo), encoding="utf-8") as fh:
+        datos = json.load(fh)
+    if datos.get("cuenta", {}).get("email") != TEST_EMAIL:
+        raise AssertionError("La descarga no corresponde a la cuenta en sesion")
+    return f"Descarga {nuevo} con los datos de {TEST_EMAIL}"
+
+
+def sc_solicitud_arco(driver):
+    """El titular presenta una solicitud ARCO y la ve registrada."""
+    ir_a(driver, "Configuración")
+    click_by_text(driver, "button", "Hacer una solicitud")
+    area = wait_visible(driver, By.CSS_SELECTOR, "textarea", timeout=10)
+    area.send_keys("Solicito una copia de los datos de mi cuenta (prueba automatizada).")
+    botones = [b for b in driver.find_elements(By.TAG_NAME, "button")
+               if b.text.strip().startswith("Enviar") and b.is_displayed()]
+    if not botones:
+        raise AssertionError("No se encontro el boton para enviar la solicitud")
+    botones[0].click()
+    WebDriverWait(driver, 15).until(lambda d: "pendiente" in d.find_element(By.TAG_NAME, "body").text.lower())
+    return "Solicitud ARCO registrada con estado pendiente"
+
+
+def sc_admin_restringido(driver):
+    """Un medico no accede a las funciones de administracion, ni siquiera por la API."""
+    estado = driver.execute_script(
+        "return fetch(arguments[0] + '/admin/users', {headers: {Authorization: 'Bearer ' + "
+        "localStorage.getItem('endoscan_token')}}).then(function (r) { return r.status; });",
+        BACKEND_URL)
+    # El 403 provocado a proposito no cuenta como error de la aplicacion.
+    driver.get_log("browser")
+    if estado != 403:
+        raise AssertionError(f"La API de administracion respondio {estado} a un medico")
+    return "GET /admin/users con sesion de medico -> 403"
+
+
 # ── Escenario 19: Consola sin errores ────────────────────────────────────────
 def sc_consola_limpia(driver):
     js_errors = driver.execute_script("return window.__consoleErrors || [];")
@@ -743,15 +812,20 @@ def main():
         run_scenario(driver, "9", "Analisis con motor ResNet50 fijo", "Analisis individual", "Tabla de decision", sc_run_analysis)
         run_scenario(driver, "10", "Informe clinico en PDF", "Analisis individual", "Caso de uso", sc_download_pdf)
         run_scenario(driver, "11", "Visualizacion Grad-CAM en vivo", "Grad-CAM", "Caso de uso", sc_gradcam)
-        run_scenario(driver, "12", "Gating de Grad-CAM por sesion", "Grad-CAM", "Tabla de decision", sc_gradcam_gating)
+        run_scenario(driver, "12", "Grad-CAM archivado tras recargar", "Grad-CAM", "Caso de uso", sc_gradcam_gating)
         run_scenario(driver, "13", "Busqueda en el historial", "Historial de estudios", "Particion de equivalencias", sc_history_search)
         run_scenario(driver, "14", "Conmutacion a modo oscuro", "Accesibilidad", "Caso de uso", sc_dark_mode)
         run_scenario(driver, "15", "Carga y previsualizacion del lote", "Procesamiento por lote", "Valores borde", sc_batch_upload)
         run_scenario(driver, "16", "Procesamiento del lote", "Procesamiento por lote", "Caso de uso", sc_batch_run)
         run_scenario(driver, "17", "Exportacion del resumen clinico", "Procesamiento por lote", "Caso de uso", sc_batch_export_csv)
-        run_scenario(driver, "18", "Sensibilidad del analisis", "Configuracion", "Valores borde", sc_settings_sensibilidad)
-        run_scenario(driver, "19", "Ficha tecnica del motor activo", "Manual de usuario", "Cobertura de interfaz", sc_manual_motor)
-        run_scenario(driver, "20", "Consola sin errores", "Calidad", "Cobertura de interfaz", sc_consola_limpia)
+        run_scenario(driver, "18", "Configuracion de experiencia de usuario", "Configuracion", "Cobertura de interfaz", sc_settings_sensibilidad)
+        run_scenario(driver, "19", "Manual de uso paso a paso", "Manual de usuario", "Cobertura de interfaz", sc_manual_motor)
+        run_scenario(driver, "20", "Historial agrupado por paciente", "Historial de estudios", "Caso de uso", sc_historial_por_paciente)
+        run_scenario(driver, "21", "Registro del diagnostico confirmado", "Historial de estudios", "Caso de uso", sc_confirmar_diagnostico)
+        run_scenario(driver, "22", "Descarga de mis datos", "Privacidad", "Caso de uso", sc_descargar_mis_datos)
+        run_scenario(driver, "23", "Solicitud ARCO", "Privacidad", "Caso de uso", sc_solicitud_arco)
+        run_scenario(driver, "24", "Administracion restringida al medico", "Seguridad", "Particion de equivalencias", sc_admin_restringido)
+        run_scenario(driver, "25", "Consola sin errores", "Calidad", "Cobertura de interfaz", sc_consola_limpia)
         if HEADED:
             log("Fin de escenarios - la ventana queda abierta 6s...")
             time.sleep(6)

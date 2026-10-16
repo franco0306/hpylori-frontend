@@ -8,9 +8,13 @@ import { Spinner } from "./states.jsx";
 // Un halo de color sigue al puntero alrededor del campo. Se añade `icon` para
 // conservar los iconos de los formularios existentes, y `error` para la
 // validación propia: mensaje bajo el campo en vez del globo del navegador.
-export const Input = forwardRef(function Input({ className, icon: Icono, error, id, ...props }, ref) {
+export const Input = forwardRef(function Input({ className, icon: Icono, error, id, type, ...props }, ref) {
   const radio = 110;
   const [visible, setVisible] = useState(false);
+  // Las contraseñas llevan un botón para mostrarlas: ayuda a detectar un
+  // autocompletado equivocado o un error de tipeo antes de enviar.
+  const esClave = type === "password";
+  const [verClave, setVerClave] = useState(false);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -41,6 +45,7 @@ export const Input = forwardRef(function Input({ className, icon: Icono, error, 
       <input
         ref={ref}
         id={id}
+        type={esClave && verClave ? "text" : type}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error && id ? id + "-error" : undefined}
         className={cn(
@@ -48,11 +53,26 @@ export const Input = forwardRef(function Input({ className, icon: Icono, error, 
           "font-sans outline-none transition duration-300 placeholder:text-ink-400",
           "shadow-[0_1px_0_0_rgba(15,23,42,0.03)] focus:border-brand-600 focus:bg-surface focus:ring-[3px] focus:ring-brand-100",
           Icono && "pl-9",
+          esClave && "pr-10",
           error && "border-pos focus:border-pos focus:ring-[color:var(--red-100)]",
           className,
         )}
         {...props}
       />
+      {esClave && (
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-ink-400 transition hover:bg-ink-100 hover:text-ink-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setVerClave((v) => !v)}
+          aria-label={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
+          aria-pressed={verClave}
+          aria-controls={id}
+          title={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
+        >
+          {verClave ? <I.eyeOff size={16} /> : <I.eye size={16} />}
+        </button>
+      )}
     </motion.div>
   );
 });

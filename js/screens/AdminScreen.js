@@ -301,7 +301,7 @@ function DesgloseTablas({ tablas, bytesMotor, bytesTotales }) {
 
 /** Bytes en MB con dos decimales: misma unidad que el límite y lo libre, para que la resta cuadre. */
 function fmtMb(bytes) {
-  return fmtNumero(Math.round((bytes / (1024 * 1024)) * 100) / 100) + " MB";
+  return (bytes / (1024 * 1024)).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " MB";
 }
 
 /** Estado de capacidad de un recurso según su porcentaje (mismos umbrales que el servidor). */
@@ -309,25 +309,58 @@ function estadoDe(pct) {
   return pct >= 85 ? "critico" : pct >= 70 ? "alerta" : "optimo";
 }
 
-// Barra de cuota de un recurso con su nombre, su porcentaje y lo que queda libre.
-function CuotaRecurso({ nombre, bytes, limiteMb, pct, nota }) {
-  const estado = estadoDe(pct || 0);
-  const libresMb = Math.max(0, limiteMb - bytes / (1024 * 1024));
-  return h("div", { className: "cuota-recurso" },
-    h("div", { className: "cuota-recurso-cab" },
-      h("span", { className: "cuota-recurso-nombre" }, nombre),
-      h("span", { className: "cuota-recurso-cifra" },
-        fmtMb(bytes) + " de " + fmtNumero(limiteMb) + " MB usados · " + fmtPct(pct) + " %"),
-    ),
-    h("div", { className: "quota-row", style: { marginTop: 6 } },
-      h("div", { className: "admin-quota", role: "img",
-                 "aria-label": nombre + ": " + fmtPct(pct) + " por ciento de la cuota" },
-        h("div", { className: "admin-quota-fill quota-" + estado,
-                   style: { width: Math.min(100, Math.max(0.6, pct || 0)) + "%" } }),
+const COLOR_ESTADO = { optimo: "var(--green-600)", alerta: "var(--amber-600)", critico: "var(--red-600)" };
+const ORDEN_ESTADO = { optimo: 0, alerta: 1, critico: 2 };
+
+/** Días hasta la saturación en palabras: días, meses o años. */
+function fmtPlazo(dias) {
+  if (dias === null || dias === undefined) return null;
+  if (dias < 60) return dias + (dias === 1 ? " día" : " días");
+  if (dias < 730) return "~" + Math.round(dias / 30) + " meses";
+  // Más allá de diez años la extrapolación ya no sirve para decidir nada.
+  if (dias >= 3650) return "más de 10 años";
+  return "~" + Math.round(dias / 365) + " años";
+}
+
+/**
+ * Nivel de un recurso: por lo que ya ocupa (70 % y 85 %, como el servidor) y por
+ * lo que tardaría en llenarse al ritmo actual (menos de 6 meses avisa, menos de
+ * 1 mes es crítico).
+ */
+function nivelRecurso(pct, dias) {
+  if (pct >= 85 || (dias !== null && dias !== undefined && dias < 30)) return "critico";
+  if (pct >= 70 || (dias !== null && dias !== undefined && dias < 180)) return "alerta";
+  return "optimo";
+}
+
+const DECISION = {
+  optimo: "Infraestructura suficiente",
+  alerta: "Planificar ampliación",
+  critico: "Ampliar ahora",
+};
+
+// Ritmo de llenado de cada recurso: el dato que responde «¿cuándo tengo que ampliar?».
+function TablaProyeccion({ recursos }) {
+  return h("div", { className: "subseccion" },
+    h("div", { className: "subseccion-titulo" }, "Proyección de capacidad (últimos 30 días)"),
+    h("div", { className: "table-wrap" },
+      h("table", { className: "table tabla-desglose" },
+        h("thead", null, h("tr", null,
+          h("th", null, "Recurso"), h("th", null, "Usado"), h("th", null, "Libre"),
+          h("th", null, "Crece por día"), h("th", null, "Se llenaría en"),
+        )),
+        h("tbody", null, recursos.map((r) => h("tr", { key: r.nombre },
+          h("td", null, h("div", { style: { fontWeight: 500 } }, r.nombre),
+            h("div", { style: { fontSize: 11, color: "var(--ink-500)" } }, r.detalle)),
+          h("td", { className: "mono" }, fmtMb(r.bytes) + " (" + fmtPct(r.pct) + " %)"),
+          h("td", { className: "mono" }, fmtMb(Math.max(0, r.limiteMb * 1024 * 1024 - r.bytes))),
+          h("td", { className: "mono" }, r.bytesDia > 0 ? fmtBytes(Math.round(r.bytesDia)) : "Sin actividad"),
+          h("td", { style: { color: COLOR_ESTADO[r.nivel], fontWeight: 600 } },
+            r.dias === null ? (r.bytesDia > 0 ? "Más de 10 años" : "Sin actividad")
+              : fmtPlazo(r.dias).replace(/^m/, "M") + (r.fecha ? " (" + fmtDia(r.fecha) + ")" : "")),
+        ))),
       ),
-      h("span", { className: "quota-leyenda" }, fmtNumero(Math.round(libresMb * 100) / 100) + " MB libres"),
     ),
-    nota && h("div", { className: "admin-metric-hint" }, nota),
   );
 }
 
@@ -344,10 +377,29 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
   // Sin datos no se pinta un cero: un cero se lee como "no hay nada guardado",
   // que es una afirmación distinta de "no se pudo consultar".
   const valor = (contenido) => (cargando ? "…" : datos ? contenido : "—");
-  const filasDe = (nombre) => {
-    const t = datos && (datos.tablas || []).find((x) => x.nombre === nombre);
-    return t ? t.filas : 0;
+  // Cada recurso con su ocupación y su ritmo de llenado.
+  const proyBd = (datos && datos.proyeccion) || {};
+  const recBd = {
+    nombre: "Base de datos", detalle: "Plan de " + fmtNumero(limiteMb) + " MB", bytes, limiteMb, pct,
+    bytesDia: proyBd.bytes_por_dia || 0, dias: proyBd.dias_para_saturacion ?? null, fecha: proyBd.fecha_saturacion,
   };
+  recBd.nivel = nivelRecurso(pct, recBd.dias);
+  const proyImg = (img && img.proyeccion) || {};
+  const recImg = imgDisponible ? {
+    nombre: "Almacén de imágenes", detalle: "Plan de " + fmtNumero(img.limite_mb) + " MB",
+    bytes: img.bytes, limiteMb: img.limite_mb, pct: img.pct,
+    bytesDia: proyImg.bytes_por_dia || 0, dias: proyImg.dias_para_saturacion ?? null, fecha: proyImg.fecha_saturacion,
+  } : null;
+  if (recImg) recImg.nivel = nivelRecurso(img.pct, recImg.dias);
+  const recursos = [recBd].concat(recImg ? [recImg] : []);
+  const nivelGlobal = recursos.reduce((n, r) => (ORDEN_ESTADO[r.nivel] > ORDEN_ESTADO[n] ? r.nivel : n), "optimo");
+  // El recurso que se llenaría antes es el que manda la decisión.
+  const proximo = recursos.filter((r) => r.dias !== null).sort((a, b) => a.dias - b.dias)[0];
+  const textoDecision = proximo && proximo.dias < 3650
+    ? proximo.nombre + " se llenaría en " + fmtPlazo(proximo.dias) + " al ritmo actual"
+    : recursos.some((r) => r.bytesDia > 0)
+      ? "Ningún recurso se llenaría en los próximos 10 años"
+      : "Sin actividad en 30 días: no hay ritmo para proyectar";
 
   if (error && !cargando) {
     return h("div", { className: "card card-pad" },
@@ -365,58 +417,39 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
     );
   }
 
-  // El estado va en la cabecera: es la primera pregunta que responde la pantalla.
-  const pildoraEstado = semaforo && !cargando && h("span", {
-    className: "pill-estado" + (estado === "critico" ? " pill-estado-off"
-                              : estado === "alerta" ? " pill-estado-wait" : ""),
-    role: "status",
-  },
-    h("span", {
-      className: "dot" + (estado === "critico" ? " dot-offline"
-                        : estado === "alerta" ? " dot-checking" : ""),
-      "aria-hidden": true,
-    }),
-    estado === "optimo" ? "Rango óptimo" : estado === "alerta" ? "En aviso" : "Crítico",
-  );
-
   return h("div", null,
     h("div", { className: "card card-pad" },
       h("div", { className: "section-head" },
         h("div", { className: "section-title", style: { marginBottom: 0 } }, "Almacenamiento"),
-        pildoraEstado,
       ),
 
-      h("div", { className: "admin-metrics" },
-        h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Estudios registrados"),
-          h("div", { className: "admin-metric-value" },
-            valor(datos && fmtNumero(datos.estudios_totales))),
-          h("div", { className: "admin-metric-hint" }, "Análisis guardados en el historial"),
-        ),
-        h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Pacientes"),
-          h("div", { className: "admin-metric-value" }, valor(datos && fmtNumero(filasDe("pacientes")))),
-          h("div", { className: "admin-metric-hint" }, "Identificados por código de historia clínica"),
-        ),
-        h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Archivos de imagen"),
-          h("div", { className: "admin-metric-value" }, valor(imgDisponible ? fmtNumero(img.archivos) : "—")),
-          h("div", { className: "admin-metric-hint" },
-            !datos ? "" : imgDisponible ? "Imagen original y mapa Grad-CAM de cada estudio"
-                                        : "No se pudo consultar el almacén de imágenes"),
-        ),
+      !cargando && datos && h("div", { className: "kpi-grid kpi-grid-3", style: { marginTop: 4 } },
+        h(KpiCard, {
+          label: "Base de datos llena",
+          value: fmtPct(pct) + " %",
+          valueColor: COLOR_ESTADO[recBd.nivel],
+          sub: fmtMb(bytes) + " de " + fmtNumero(limiteMb) + " MB",
+          barPct: Math.max(pct, 1), barColor: COLOR_ESTADO[recBd.nivel],
+        }),
+        h(KpiCard, {
+          label: "Almacén de imágenes lleno",
+          value: imgDisponible ? fmtPct(img.pct) + " %" : "—",
+          valueColor: imgDisponible ? COLOR_ESTADO[recImg.nivel] : "var(--ink-400)",
+          sub: imgDisponible
+            ? fmtMb(img.bytes) + " de " + fmtNumero(img.limite_mb) + " MB · " + fmtNumero(img.archivos) + " archivos"
+            : "No se pudo consultar el almacén",
+          barPct: imgDisponible ? Math.max(img.pct, 1) : 0, barColor: COLOR_ESTADO[recImg ? recImg.nivel : "optimo"],
+        }),
+        h(KpiCard, {
+          label: "Decisión de infraestructura",
+          value: h("span", { style: { fontSize: 20 } }, DECISION[nivelGlobal]),
+          valueColor: COLOR_ESTADO[nivelGlobal],
+          sub: textoDecision,
+          barColor: COLOR_ESTADO[nivelGlobal],
+        }),
       ),
 
-      !cargando && datos && h("div", { className: "cuotas" },
-        h(CuotaRecurso, {
-          nombre: "Base de datos", bytes, limiteMb, pct,
-          nota: "Tamaño real de toda la base: tablas del sistema y espacio interno del motor (detalle abajo).",
-        }),
-        imgDisponible && h(CuotaRecurso, {
-          nombre: "Almacén de imágenes", bytes: img.bytes, limiteMb: img.limite_mb, pct: img.pct,
-          nota: "Servicio aparte de la base, con su propia cuota.",
-        }),
-      ),
+      !cargando && datos && h(TablaProyeccion, { recursos }),
 
       // Solo en aviso o crítico: en óptimo la píldora de la cabecera ya lo dice.
       semaforo && !cargando && estado !== "optimo" && h("div", {

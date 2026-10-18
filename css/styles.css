@@ -1389,3 +1389,5 @@ img.brand-mark {
 @media (max-width: 900px) { .modelo-grid, .modelo-metricas { grid-template-columns: 1fr; } }
 .comparativa-confirmacion { margin-top: 4px; }
 .comparativa-confirmacion .confirmacion-botones { max-width: 420px; }
+.kpi-grid.kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 900px) { .kpi-grid.kpi-grid-3 { grid-template-columns: 1fr; } }

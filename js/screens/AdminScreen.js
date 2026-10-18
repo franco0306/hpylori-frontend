@@ -13,7 +13,6 @@ import { authFetch } from "../auth.js";
 import { EmptyState, SkeletonTable } from "../ui/states.jsx";
 import { fmtLatencia } from "../format.js";
 import { KpiCard } from "../components/Dashboard.js";
-import { ESTADOS, useServiceStatus } from "../health.js";
 import { ROLES, ROLE_LABEL, normalizeRole } from "../roles.js";
 
 const React = window.React;
@@ -129,18 +128,6 @@ const SEMAFORO = {
   },
 };
 
-/**
- * Impacto de una cuenta sobre la cuota contratada.
- *
- * Un consumo real pero diminuto no puede mostrarse como `0.00%`: eso se lee
- * como "no ocupa nada", que es una afirmación distinta. Cero de verdad sí es
- * cero.
- */
-function fmtPctCuota(pct) {
-  if (!pct) return "0%";
-  return pct < 0.01 ? "<0.01%" : pct.toFixed(2) + "%";
-}
-
 /** Porcentaje de cuota con precisión suficiente para que un 0.03 % no sea 0 %. */
 function fmtPct(pct) {
   if (!Number.isFinite(pct)) return "—";
@@ -191,52 +178,10 @@ function iniciales(fila) {
   return (fuente.slice(0, 2) || "?").toUpperCase();
 }
 
-// ── Ayuda contextual del KPI de disponibilidad ───────────────────────────────
-// El disparador es un `button` con `aria-describedby`, no un `div` con
-// `role="tooltip"`: ese rol describe la BURBUJA, no al elemento que la abre, y
-// un `aria-label` sobre el contenedor sustituiría el texto en vez de anunciarlo.
-// Se muestra con :hover y :focus-within, así que funciona con teclado sin JS.
-function AyudaDisponibilidad() {
-  return h("span", { className: "kpi-help-tooltip" },
-    h("button", {
-      type: "button",
-      className: "kpi-help-icon",
-      "aria-label": "Cómo se calcula la disponibilidad del motor",
-      "aria-describedby": "ayuda-disponibilidad",
-    }, "?"),
-
-    h("span", {
-      className: "kpi-tooltip-bubble",
-      role: "tooltip",
-      id: "ayuda-disponibilidad",
-    },
-      h("strong", null, "Disponibilidad operativa (uptime)"),
-      h("p", null,
-        "Audita en tiempo real la conectividad con el motor de inferencia en ",
-        "Hugging Face mediante sondeos de salud periódicos, cada dos minutos."),
-
-      h("span", { className: "tooltip-formula" },
-        h("code", null, "Disponibilidad = [(T_total − T_caída) / T_total] × 100")),
-
-      h("p", { className: "tooltip-meta" },
-        h("strong", null, "Objetivo 99.9 %: "),
-        "tolera un máximo de 43.2 minutos de inactividad acumulada sobre una ",
-        "ventana mensual continua de 30 días (720 horas)."),
-
-      // Sin esta línea, la fórmula da a entender que el panel calcula un
-      // histórico. No lo hace: no se persiste el registro de caídas.
-      h("p", { className: "tooltip-meta" },
-        "La píldora refleja el resultado de la última comprobación, no una ",
-        "medición acumulada: el sistema aún no guarda histórico de caídas."),
-    ),
-  );
-}
-
-
 // ── Módulo: KPIs de gobernanza ───────────────────────────────────────────────
 // Cifras de cabecera del servicio, no del diagnóstico. Reutilizan la tarjeta
 // `KpiCard` del panel clínico para que ambas pantallas se lean igual.
-function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) {
+function KpisGobernanza({ usuarios, almacenamiento, cargando }) {
   const medicos = usuarios.filter((u) => normalizeRole(u.role) === ROLES.MEDICO).length;
   const admins = usuarios.length - medicos;
   const plural = (n, singular, plurales) => n + " " + (n === 1 ? singular : plurales);
@@ -256,12 +201,7 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
     : campoAusente ? "El servidor aún no informa esta métrica"
                    : "Aún no hay estudios registrados";
 
-  const online = estadoServicio === ESTADOS.ONLINE;
-  const comprobando = estadoServicio === ESTADOS.COMPROBANDO;
-  const claseEstado = comprobando ? " pill-estado-wait" : online ? "" : " pill-estado-off";
-  const textoEstado = comprobando ? "Comprobando…" : online ? "Operativo" : "Sin conexión";
-
-  return h("div", { className: "kpi-grid", style: { marginBottom: 20 } },
+  return h("div", { className: "kpi-grid kpi-grid-3", style: { marginBottom: 20 } },
     h(KpiCard, {
       label: "Cuentas registradas",
       value: cargando ? "…" : usuarios.length,
@@ -288,28 +228,6 @@ function KpisGobernanza({ usuarios, almacenamiento, cargando, estadoServicio }) 
       valueColor: colorLatencia,
     }),
 
-    h(KpiCard, {
-      // La tarjeta deja de recortar: la burbuja del tooltip se sale de ella.
-      permitirDesborde: true,
-      label: h("span", { className: "kpi-header-with-help" },
-        h("span", { className: "kpi-title" }, "Disponibilidad del motor"),
-        h(AyudaDisponibilidad, null),
-      ),
-      // Estado medido por la sonda, no una cifra de tiempo de servicio: nadie
-      // registra el histórico de caídas, así que el 99.9 % va como objetivo.
-      value: h("span", {
-        className: "pill-estado" + claseEstado,
-        style: { fontSize: 13, fontFamily: "inherit", letterSpacing: 0 },
-      },
-        h("span", {
-          className: "dot" + (comprobando ? " dot-checking" : online ? "" : " dot-offline"),
-          "aria-hidden": true,
-        }),
-        textoEstado,
-      ),
-      sub: "Motor en Hugging Face · Objetivo 99.9 %",
-      barColor: comprobando ? "var(--ink-400)" : online ? "var(--green-600)" : "var(--red-600)",
-    }),
   );
 }
 
@@ -1008,13 +926,9 @@ function ModalEliminar({ fila, borrando, error, onConfirmar, onCerrar }) {
 
 // ── Módulo: gestión de cuentas ───────────────────────────────────────────────
 function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando, aviso,
-                          limiteMb, menuAbierto, onAlternarMenu, onCerrarMenu,
+                          menuAbierto, onAlternarMenu, onCerrarMenu,
                           onCambiarRol, onRestablecer, onEditar, onCambiarEstado,
                           onEliminar, onReintentar, onReiniciarMfa }) {
-  // Solo para el rótulo del título emergente; el porcentaje ya viene calculado
-  // contra este mismo límite desde el servidor.
-  const limiteCuotaMb = limiteMb || CUOTA_MB;
-
   const cuerpo = () => {
     if (cargando) {
       return h("div", { role: "status" },
@@ -1052,7 +966,6 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
         h("th", null, "Rol"),
         h("th", null, "Última conexión"),
         h("th", null, "Estado"),
-        h("th", null, "Almacenamiento"),
         h("th", { className: "col-acciones" }, "Acciones"),
       )),
       h("tbody", null,
@@ -1063,14 +976,6 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
           const nombre = u.name || u.full_name || "—";
           const fecha = fmtFechaHora(u.last_login);
           const destino = rol === ROLES.ADMIN ? ROLES.MEDICO : ROLES.ADMIN;
-          // Impacto sobre la cuota contratada, que es la pregunta de capacidad.
-          // `pct_almacenamiento` mide otra cosa —qué parte del historial es
-          // suya— y por eso no manda aquí: con la base al 0.05 %, tener el 67 %
-          // de los estudios no supone riesgo alguno de infraestructura.
-          // Se normaliza a número: un backend anterior no envía el campo, y
-          // `undefined.toFixed()` tumbaría la tabla entera.
-          const pctCuota = Number(u.pct_cuota_sistema) || 0;
-
           return h("tr", { key: u.id || u.email },
             h("td", null,
               h("div", { className: "row", style: { gap: 10 } },
@@ -1128,40 +1033,6 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
                   "aria-hidden": true,
                 }),
                 u.activo === false ? "Inactivo" : "Activo")),
-
-            // Cuota de la cuenta sobre el historial completo. Es un reparto
-            // proporcional al número de estudios, no una medida por fila.
-            h("td", null,
-              u.estudios
-                ? h("div", { className: "storage-cell" },
-                    h("div", { className: "storage-bar-row" },
-                      h("div", {
-                        className: "storage-track",
-                        title: pctCuota + "% de la cuota total de " + limiteCuotaMb + " MB",
-                        role: "img",
-                        "aria-label": "Ocupa el " + fmtPctCuota(pctCuota) +
-                                      " de la cuota contratada",
-                      },
-                        // La barra amplifica x10 para que un consumo minúsculo
-                        // siga siendo visible; el número de al lado y el título
-                        // llevan siempre la cifra real, sin amplificar.
-                        h("div", {
-                          className: "storage-fill",
-                          style: { width: Math.min(100, Math.max(pctCuota * 10, 2)) + "%" },
-                        }),
-                      ),
-                      h("span", { className: "storage-pct" }, fmtPctCuota(pctCuota)),
-                    ),
-                    h("span", { className: "storage-meta" },
-                      u.estudios + (u.estudios === 1 ? " estudio" : " estudios") +
-                      (u.kb_estimados ? " · " + u.kb_estimados + " KB" : "")),
-                  )
-                // Sin estudios no se pinta una barra vacía: un guion dice
-                // "no aplica", que es más honesto que un 0 % con su pista.
-                : h("div", { className: "storage-cell storage-empty" },
-                    h("span", { className: "storage-none", "aria-hidden": true }, "—"),
-                    h("span", { className: "storage-meta" }, "Sin estudios"),
-                  )),
 
             h("td", { className: "col-acciones" },
               h(MenuAcciones, {
@@ -1229,8 +1100,6 @@ export function AdminScreen({ section = "panel", user }) {
   const [modal, setModal] = useState(null);          // { fila }
   const [estadoModal, setEstadoModal] = useState("confirmar");
   const [errorModal, setErrorModal] = useState(null);
-
-  const [estadoServicio] = useServiceStatus();
 
   // Ciclo de vida de cuentas. Solo un menú abierto a la vez: dos menús
   // flotantes simultáneos se solapan y no se sabe cuál manda.
@@ -1527,7 +1396,7 @@ export function AdminScreen({ section = "panel", user }) {
 
     esPanel
       ? h(KpisGobernanza, {
-          usuarios, almacenamiento, cargando, estadoServicio,
+          usuarios, almacenamiento, cargando,
         })
       : h(AuditoriaAlmacenamiento, {
           datos: almacenamiento,
@@ -1547,7 +1416,6 @@ export function AdminScreen({ section = "panel", user }) {
       idPropio: user && user.id,
       cambiando,
       aviso,
-      limiteMb: almacenamiento && almacenamiento.limite_mb,
       menuAbierto,
       onAlternarMenu: handleAlternarMenu,
       onCerrarMenu: handleCerrarMenu,

@@ -241,8 +241,12 @@ function fmtNumero(n) {
 // Desglose por tabla. Vive dentro de la tarjeta de almacenamiento, no en una
 // propia: total y desglose son el mismo dato a dos escalas, y separarlos en
 // dos tarjetas obligaba a saltar entre ellas para relacionarlos.
-function DesgloseTablas({ tablas, bytesTotales }) {
+function DesgloseTablas({ tablas, bytesMotor, bytesTotales }) {
   if (!tablas || !tablas.length) return null;   // early return
+  const filasDesglose = tablas.concat(bytesMotor > 0 ? [{
+    nombre: "motor", etiqueta: "Espacio interno del motor", filas: null, bytes: bytesMotor,
+    detalle: "Índices, catálogos y espacio reservado",
+  }] : []);
 
   return h("div", { className: "subseccion" },
     h("div", { className: "subseccion-titulo" }, "Desglose por tabla"),
@@ -255,15 +259,15 @@ function DesgloseTablas({ tablas, bytesTotales }) {
           h("th", null, "Proporción"),
         )),
         h("tbody", null,
-          tablas.map((t) => {
+          filasDesglose.map((t) => {
             const pct = bytesTotales > 0 ? (t.bytes / bytesTotales) * 100 : 0;
             return h("tr", { key: t.nombre },
               h("td", null,
                 h("div", { style: { fontWeight: 500 } }, t.etiqueta),
-                h("div", { className: "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
-                  t.nombre),
+                h("div", { className: t.detalle ? "" : "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
+                  t.detalle || t.nombre),
               ),
-              h("td", { className: "mono" }, fmtNumero(t.filas)),
+              h("td", { className: "mono" }, t.filas === null ? "—" : fmtNumero(t.filas)),
               h("td", { className: "mono" },
                 fmtBytes(t.bytes),
                 t.estimado && h("span", { title: "Contenido de la tabla, sin índices" }, " ≈"),
@@ -275,7 +279,7 @@ function DesgloseTablas({ tablas, bytesTotales }) {
                       className: "storage-track",
                       role: "img",
                       "aria-label": t.etiqueta + " ocupa el " + pct.toFixed(1) +
-                                    " por ciento de la base",
+                                    " por ciento de la base de datos",
                     },
                       h("div", {
                         className: "storage-fill",
@@ -295,6 +299,11 @@ function DesgloseTablas({ tablas, bytesTotales }) {
 }
 
 
+/** Bytes en MB con dos decimales: misma unidad que el límite y lo libre, para que la resta cuadre. */
+function fmtMb(bytes) {
+  return fmtNumero(Math.round((bytes / (1024 * 1024)) * 100) / 100) + " MB";
+}
+
 /** Estado de capacidad de un recurso según su porcentaje (mismos umbrales que el servidor). */
 function estadoDe(pct) {
   return pct >= 85 ? "critico" : pct >= 70 ? "alerta" : "optimo";
@@ -308,7 +317,7 @@ function CuotaRecurso({ nombre, bytes, limiteMb, pct, nota }) {
     h("div", { className: "cuota-recurso-cab" },
       h("span", { className: "cuota-recurso-nombre" }, nombre),
       h("span", { className: "cuota-recurso-cifra" },
-        fmtBytes(bytes) + " de " + fmtNumero(limiteMb) + " MB · " + fmtPct(pct) + " %"),
+        fmtMb(bytes) + " de " + fmtNumero(limiteMb) + " MB usados · " + fmtPct(pct) + " %"),
     ),
     h("div", { className: "quota-row", style: { marginTop: 6 } },
       h("div", { className: "admin-quota", role: "img",
@@ -335,6 +344,10 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
   // Sin datos no se pinta un cero: un cero se lee como "no hay nada guardado",
   // que es una afirmación distinta de "no se pudo consultar".
   const valor = (contenido) => (cargando ? "…" : datos ? contenido : "—");
+  const filasDe = (nombre) => {
+    const t = datos && (datos.tablas || []).find((x) => x.nombre === nombre);
+    return t ? t.filas : 0;
+  };
 
   if (error && !cargando) {
     return h("div", { className: "card card-pad" },
@@ -381,29 +394,27 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
           h("div", { className: "admin-metric-hint" }, "Análisis guardados en el historial"),
         ),
         h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Base de datos"),
-          h("div", { className: "admin-metric-value" }, valor(fmtBytes(bytes))),
-          h("div", { className: "admin-metric-hint" }, "Tamaño real de toda la base"),
+          h("div", { className: "admin-metric-label" }, "Pacientes"),
+          h("div", { className: "admin-metric-value" }, valor(datos && fmtNumero(filasDe("pacientes")))),
+          h("div", { className: "admin-metric-hint" }, "Identificados por código de historia clínica"),
         ),
         h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Imágenes archivadas"),
-          h("div", { className: "admin-metric-value" },
-            valor(imgDisponible ? fmtBytes(img.bytes) : "—")),
+          h("div", { className: "admin-metric-label" }, "Archivos de imagen"),
+          h("div", { className: "admin-metric-value" }, valor(imgDisponible ? fmtNumero(img.archivos) : "—")),
           h("div", { className: "admin-metric-hint" },
-            !datos ? "" : imgDisponible
-              ? fmtNumero(img.archivos) + (img.archivos === 1 ? " archivo" : " archivos") + " (imágenes y mapas Grad-CAM)"
-              : "No se pudo consultar el almacén de imágenes"),
+            !datos ? "" : imgDisponible ? "Imagen original y mapa Grad-CAM de cada estudio"
+                                        : "No se pudo consultar el almacén de imágenes"),
         ),
       ),
 
       !cargando && datos && h("div", { className: "cuotas" },
         h(CuotaRecurso, {
           nombre: "Base de datos", bytes, limiteMb, pct,
-          nota: "Cuentas, estudios, pacientes, bitácora y demás tablas del sistema.",
+          nota: "Tamaño real de toda la base: tablas del sistema y espacio interno del motor (detalle abajo).",
         }),
         imgDisponible && h(CuotaRecurso, {
           nombre: "Almacén de imágenes", bytes: img.bytes, limiteMb: img.limite_mb, pct: img.pct,
-          nota: "Imagen original y mapa Grad-CAM de cada estudio.",
+          nota: "Servicio aparte de la base, con su propia cuota.",
         }),
       ),
 
@@ -422,11 +433,12 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
 
       !cargando && datos && h(DesgloseTablas, {
         tablas: datos.tablas,
-        bytesTotales: datos.bytes_totales_bd,
+        bytesMotor: datos.bytes_motor || 0,
+        bytesTotales: datos.bytes_ocupados,
       }),
       !cargando && datos && datos.desglose_estimado && h("div", { className: "admin-metric-hint", style: { marginTop: 8 } },
-        "≈ En este entorno el motor no informa el peso de cada tabla: se muestra su contenido, sin índices. ",
-        "El total de la base sí es real."),
+        "≈ En este entorno el motor no informa el peso de cada tabla: se muestra su contenido y los índices ",
+        "quedan en «Espacio interno del motor». La suma de todas las filas es el tamaño real de la base."),
     ),
 
     // Mantenimiento en una sola fila: texto a la izquierda, acción a la

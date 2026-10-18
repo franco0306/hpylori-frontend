@@ -1391,3 +1391,7 @@ img.brand-mark {
 .comparativa-confirmacion .confirmacion-botones { max-width: 420px; }
 .kpi-grid.kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 900px) { .kpi-grid.kpi-grid-3 { grid-template-columns: 1fr; } }
+.cuotas { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.cuota-recurso-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cuota-recurso-nombre { font-size: 12.5px; font-weight: 600; color: var(--ink-800); }
+.cuota-recurso-cifra { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-500); }

@@ -266,8 +266,7 @@ function DesgloseTablas({ tablas, bytesTotales }) {
               h("td", { className: "mono" }, fmtNumero(t.filas)),
               h("td", { className: "mono" },
                 fmtBytes(t.bytes),
-                t.estimado && h("span", { title: "El motor no informa el tamaño real: se estima desde el número de filas" },
-                  " ≈"),
+                t.estimado && h("span", { title: "Contenido de la tabla, sin índices" }, " ≈"),
               ),
               h("td", null,
                 h("div", { className: "storage-cell" },
@@ -296,18 +295,42 @@ function DesgloseTablas({ tablas, bytesTotales }) {
 }
 
 
+/** Estado de capacidad de un recurso según su porcentaje (mismos umbrales que el servidor). */
+function estadoDe(pct) {
+  return pct >= 85 ? "critico" : pct >= 70 ? "alerta" : "optimo";
+}
+
+// Barra de cuota de un recurso con su nombre, su porcentaje y lo que queda libre.
+function CuotaRecurso({ nombre, bytes, limiteMb, pct, nota }) {
+  const estado = estadoDe(pct || 0);
+  const libresMb = Math.max(0, limiteMb - bytes / (1024 * 1024));
+  return h("div", { className: "cuota-recurso" },
+    h("div", { className: "cuota-recurso-cab" },
+      h("span", { className: "cuota-recurso-nombre" }, nombre),
+      h("span", { className: "cuota-recurso-cifra" },
+        fmtBytes(bytes) + " de " + fmtNumero(limiteMb) + " MB · " + fmtPct(pct) + " %"),
+    ),
+    h("div", { className: "quota-row", style: { marginTop: 6 } },
+      h("div", { className: "admin-quota", role: "img",
+                 "aria-label": nombre + ": " + fmtPct(pct) + " por ciento de la cuota" },
+        h("div", { className: "admin-quota-fill quota-" + estado,
+                   style: { width: Math.min(100, Math.max(0.6, pct || 0)) + "%" } }),
+      ),
+      h("span", { className: "quota-leyenda" }, fmtNumero(Math.round(libresMb * 100) / 100) + " MB libres"),
+    ),
+    nota && h("div", { className: "admin-metric-hint" }, nota),
+  );
+}
+
 function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
                                    purgando, purgaResultado, onPurgar }) {
   const bytes = datos ? datos.bytes_ocupados : 0;
   const limiteMb = (datos && datos.limite_mb) || CUOTA_MB;
   const pct = datos ? datos.cuota_consumida_pct : 0;
-  const consumoTexto = fmtPct(pct);
-  // La barra se recorta al 100 %; el número puede pasarse, y debe verse que lo hace.
-  const anchoBarra = Math.min(100, Math.max(0.6, pct || 0));
-  const estimado = Boolean(datos && datos.estimado);
+  const img = (datos && datos.imagenes) || null;
+  const imgDisponible = Boolean(img && img.disponible);
   const estado = (datos && datos.estado_infraestructura) || "optimo";
   const semaforo = SEMAFORO[estado] || null;
-  const libresMb = datos ? Math.max(0, limiteMb - bytes / (1024 * 1024)) : null;
 
   // Sin datos no se pinta un cero: un cero se lee como "no hay nada guardado",
   // que es una afirmación distinta de "no se pudo consultar".
@@ -329,8 +352,7 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
     );
   }
 
-  // El estado va en la cabecera, alineado a la derecha del título: es la
-  // primera pregunta que responde la pantalla, y ahí se ve sin buscarlo.
+  // El estado va en la cabecera: es la primera pregunta que responde la pantalla.
   const pildoraEstado = semaforo && !cargando && h("span", {
     className: "pill-estado" + (estado === "critico" ? " pill-estado-off"
                               : estado === "alerta" ? " pill-estado-wait" : ""),
@@ -356,41 +378,36 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
           h("div", { className: "admin-metric-label" }, "Estudios registrados"),
           h("div", { className: "admin-metric-value" },
             valor(datos && fmtNumero(datos.estudios_totales))),
-          h("div", { className: "admin-metric-hint" }, "Filas en la tabla de estudios"),
+          h("div", { className: "admin-metric-hint" }, "Análisis guardados en el historial"),
         ),
         h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Almacenamiento ocupado"),
+          h("div", { className: "admin-metric-label" }, "Base de datos"),
           h("div", { className: "admin-metric-value" }, valor(fmtBytes(bytes))),
-          h("div", { className: "admin-metric-hint" },
-            estimado ? "≈ 200 B por estudio (estimado)" : "Tamaño real de la tabla"),
+          h("div", { className: "admin-metric-hint" }, "Tamaño real de toda la base"),
         ),
         h("div", { className: "admin-metric" },
-          h("div", { className: "admin-metric-label" }, "Cuota consumida"),
-          h("div", { className: "admin-metric-value" }, valor(consumoTexto + " %")),
-          h("div", { className: "admin-metric-hint" }, "Sobre " + limiteMb + " MB contratados"),
+          h("div", { className: "admin-metric-label" }, "Imágenes archivadas"),
+          h("div", { className: "admin-metric-value" },
+            valor(imgDisponible ? fmtBytes(img.bytes) : "—")),
+          h("div", { className: "admin-metric-hint" },
+            !datos ? "" : imgDisponible
+              ? fmtNumero(img.archivos) + (img.archivos === 1 ? " archivo" : " archivos") + " (imágenes y mapas Grad-CAM)"
+              : "No se pudo consultar el almacén de imágenes"),
         ),
       ),
 
-      // La barra lleva su lectura al lado: con la base al 0.03 % el relleno es
-      // invisible y, sola, parecía una barra rota en vez de una casi vacía.
-      h("div", { className: "quota-row" },
-        h("div", {
-          className: "admin-quota",
-          role: "img",
-          "aria-label": "Cuota consumida: " + consumoTexto + " por ciento",
-        },
-          h("div", {
-            className: "admin-quota-fill quota-" + estado,
-            style: { width: anchoBarra + "%" },
-          }),
-        ),
-        h("span", { className: "quota-leyenda" },
-          libresMb === null ? "—"
-            : fmtNumero(Math.round(libresMb * 100) / 100) + " MB libres"),
+      !cargando && datos && h("div", { className: "cuotas" },
+        h(CuotaRecurso, {
+          nombre: "Base de datos", bytes, limiteMb, pct,
+          nota: "Cuentas, estudios, pacientes, bitácora y demás tablas del sistema.",
+        }),
+        imgDisponible && h(CuotaRecurso, {
+          nombre: "Almacén de imágenes", bytes: img.bytes, limiteMb: img.limite_mb, pct: img.pct,
+          nota: "Imagen original y mapa Grad-CAM de cada estudio.",
+        }),
       ),
 
-      // Solo en aviso o crítico: en óptimo la píldora de la cabecera ya lo dice
-      // y repetirlo en un banner sería justo el ruido que se quiere evitar.
+      // Solo en aviso o crítico: en óptimo la píldora de la cabecera ya lo dice.
       semaforo && !cargando && estado !== "optimo" && h("div", {
         className: "alert " + semaforo.clase,
         style: { marginTop: 14 },
@@ -403,19 +420,13 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
         ),
       ),
 
-      estimado && !cargando && h("div", { className: "alert alert-info", style: { marginTop: 12 } },
-        h(I.info, { size: 14 }),
-        h("div", { style: { fontSize: 12, lineHeight: 1.5 } },
-          h("strong", null, "Cifras estimadas. "),
-          "El motor de base de datos no informa el tamaño real de las tablas, así ",
-          "que se calcula desde el número de filas y el tamaño conocido del esquema.",
-        ),
-      ),
-
       !cargando && datos && h(DesgloseTablas, {
         tablas: datos.tablas,
         bytesTotales: datos.bytes_totales_bd,
       }),
+      !cargando && datos && datos.desglose_estimado && h("div", { className: "admin-metric-hint", style: { marginTop: 8 } },
+        "≈ En este entorno el motor no informa el peso de cada tabla: se muestra su contenido, sin índices. ",
+        "El total de la base sí es real."),
     ),
 
     // Mantenimiento en una sola fila: texto a la izquierda, acción a la

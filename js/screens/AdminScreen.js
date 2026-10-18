@@ -994,8 +994,11 @@ function GestionCuentas({ usuarios, cargando, lento, error, idPropio, cambiando,
               u.mfa_enabled
                 ? h("span", { className: "badge badge-neg", style: { marginLeft: 6 },
                               title: "Verificación en dos pasos activa" }, "2FA")
-                : rol === ROLES.ADMIN && h("span", { className: "badge badge-warn", style: { marginLeft: 6 },
-                              title: "Configurará el segundo factor en su próximo ingreso" }, "2FA pendiente")),
+                : rol === ROLES.ADMIN && (u.mfa_exento
+                  ? h("span", { className: "badge badge-neutral", style: { marginLeft: 6 },
+                                title: "Exceptuada del segundo factor por configuración del servidor (MFA_EXENTOS)" }, "Sin 2FA (exenta)")
+                  : h("span", { className: "badge badge-warn", style: { marginLeft: 6 },
+                                title: "Configurará el segundo factor en su próximo ingreso" }, "2FA pendiente"))),
 
             // Cuando la cuenta es anterior a la columna `last_login`, el servidor
             // devuelve el alta: se rotula como tal en lugar de hacerla pasar por

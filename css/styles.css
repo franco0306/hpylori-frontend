@@ -1395,3 +1395,8 @@ img.brand-mark {
 .cuota-recurso-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .cuota-recurso-nombre { font-size: 12.5px; font-weight: 600; color: var(--ink-800); }
 .cuota-recurso-cifra { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-500); }
+
+.arco-filtros { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.arco-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.arco-tipo { min-width: 190px; }
+.arco-lista { display: flex; flex-direction: column; gap: 10px; }

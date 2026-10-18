@@ -238,67 +238,6 @@ function fmtNumero(n) {
   return Number.isFinite(n) ? Number(n).toLocaleString("es-PE") : "—";
 }
 
-// Desglose por tabla. Vive dentro de la tarjeta de almacenamiento, no en una
-// propia: total y desglose son el mismo dato a dos escalas, y separarlos en
-// dos tarjetas obligaba a saltar entre ellas para relacionarlos.
-function DesgloseTablas({ tablas, bytesMotor, bytesTotales }) {
-  if (!tablas || !tablas.length) return null;   // early return
-  const filasDesglose = tablas.concat(bytesMotor > 0 ? [{
-    nombre: "motor", etiqueta: "Espacio interno del motor", filas: null, bytes: bytesMotor,
-    detalle: "Índices, catálogos y espacio reservado",
-  }] : []);
-
-  return h("div", { className: "subseccion" },
-    h("div", { className: "subseccion-titulo" }, "Desglose por tabla"),
-    h("div", { className: "table-wrap" },
-      h("table", { className: "table tabla-desglose" },
-        h("thead", null, h("tr", null,
-          h("th", null, "Tabla"),
-          h("th", null, "Filas"),
-          h("th", null, "Tamaño"),
-          h("th", null, "Proporción"),
-        )),
-        h("tbody", null,
-          filasDesglose.map((t) => {
-            const pct = bytesTotales > 0 ? (t.bytes / bytesTotales) * 100 : 0;
-            return h("tr", { key: t.nombre },
-              h("td", null,
-                h("div", { style: { fontWeight: 500 } }, t.etiqueta),
-                h("div", { className: t.detalle ? "" : "mono", style: { fontSize: 11, color: "var(--ink-500)" } },
-                  t.detalle || t.nombre),
-              ),
-              h("td", { className: "mono" }, t.filas === null ? "—" : fmtNumero(t.filas)),
-              h("td", { className: "mono" },
-                fmtBytes(t.bytes),
-                t.estimado && h("span", { title: "Contenido de la tabla, sin índices" }, " ≈"),
-              ),
-              h("td", null,
-                h("div", { className: "storage-cell" },
-                  h("div", { className: "storage-bar-row" },
-                    h("div", {
-                      className: "storage-track",
-                      role: "img",
-                      "aria-label": t.etiqueta + " ocupa el " + pct.toFixed(1) +
-                                    " por ciento de la base de datos",
-                    },
-                      h("div", {
-                        className: "storage-fill",
-                        style: { width: Math.min(100, Math.max(pct, 2)) + "%" },
-                      }),
-                    ),
-                    h("span", { className: "storage-pct" }, pct.toFixed(1) + "%"),
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    ),
-  );
-}
-
-
 /** Bytes en MB con dos decimales: misma unidad que el límite y lo libre, para que la resta cuadre. */
 function fmtMb(bytes) {
   return (bytes / (1024 * 1024)).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " MB";
@@ -451,7 +390,7 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
 
       !cargando && datos && h(TablaProyeccion, { recursos }),
 
-      // Solo en aviso o crítico: en óptimo la píldora de la cabecera ya lo dice.
+      // Solo en aviso o crítico: en óptimo basta con el KPI de decisión.
       semaforo && !cargando && estado !== "optimo" && h("div", {
         className: "alert " + semaforo.clase,
         style: { marginTop: 14 },
@@ -464,14 +403,6 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
         ),
       ),
 
-      !cargando && datos && h(DesgloseTablas, {
-        tablas: datos.tablas,
-        bytesMotor: datos.bytes_motor || 0,
-        bytesTotales: datos.bytes_ocupados,
-      }),
-      !cargando && datos && datos.desglose_estimado && h("div", { className: "admin-metric-hint", style: { marginTop: 8 } },
-        "≈ En este entorno el motor no informa el peso de cada tabla: se muestra su contenido y los índices ",
-        "quedan en «Espacio interno del motor». La suma de todas las filas es el tamaño real de la base."),
     ),
 
     // Mantenimiento en una sola fila: texto a la izquierda, acción a la

@@ -202,29 +202,47 @@ function Bitacora() {
 }
 
 // ── Solicitudes ARCO ─────────────────────────────────────────────────────────
+// La lista se pide de diez en diez y filtrada en el servidor: con el tiempo las
+// solicitudes se acumulan y una lista completa sería inmanejable. Las
+// pendientes salen primero porque son las que exigen acción.
+const FILTROS_ESTADO = [
+  { id: "", label: "Todas" },
+  { id: "pendiente", label: "Pendientes" },
+  { id: "atendida", label: "Atendidas" },
+  { id: "rechazada", label: "Rechazadas" },
+];
+
 function SolicitudesArco() {
-  const [solicitudes, setSolicitudes] = useState(null);
+  const [datos, setDatos] = useState(null);
   const [error, setError] = useState(null);
   const [respuestas, setRespuestas] = useState({});
   const [guardando, setGuardando] = useState(null);
+  const [estado, setEstado] = useState("pendiente");
+  const [tipo, setTipo] = useState("");
+  const [pagina, setPagina] = useState(1);
 
   const cargar = useCallback(() => {
-    pedirJson("/admin/arco")
-      .then((d) => { setSolicitudes(d); setError(null); })
+    const q = new URLSearchParams({ pagina: String(pagina) });
+    if (estado) q.set("estado", estado);
+    if (tipo) q.set("tipo", tipo);
+    pedirJson("/admin/arco?" + q.toString())
+      .then((d) => { setDatos(d); setError(null); })
       .catch(() => setError("No se pudieron cargar las solicitudes ARCO."));
-  }, []);
+  }, [estado, tipo, pagina]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  // Al cambiar un filtro se vuelve a la primera página.
+  useEffect(() => { setPagina(1); }, [estado, tipo]);
 
-  const handleResolver = async (s, estado) => {
+  const handleResolver = async (s, nuevo) => {
     setGuardando(s.id);
     try {
       await pedirJson("/admin/arco/" + s.id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado, respuesta: (respuestas[s.id] || "").trim() || null }),
+        body: JSON.stringify({ estado: nuevo, respuesta: (respuestas[s.id] || "").trim() || null }),
       });
-      toast.success(estado === "atendida" ? "Solicitud atendida" : "Solicitud rechazada",
+      toast.success(nuevo === "atendida" ? "Solicitud atendida" : "Solicitud rechazada",
         "El titular verá el nuevo estado en su panel de privacidad.");
       cargar();
     } catch (err) {
@@ -234,14 +252,39 @@ function SolicitudesArco() {
     }
   };
 
-  const pendientes = solicitudes ? solicitudes.filter((s) => s.estado === "pendiente").length : 0;
+  const solicitudes = datos ? datos.items : null;
+  const porEstado = (datos && datos.por_estado) || {};
+  const porTipo = (datos && datos.por_tipo) || {};
+  const pendientes = porEstado.pendiente || 0;
+  const totalTodas = Object.values(porEstado).reduce((a, b) => a + b, 0);
 
   return h("div", { className: "card card-pad" },
     h("div", { className: "row between", style: { marginBottom: 12 } },
       h("div", { className: "section-title", style: { marginBottom: 0 } }, "Solicitudes ARCO"),
-      solicitudes && h("span", { className: "badge " + (pendientes ? "badge-warn" : "badge-neg") },
+      datos && h("span", { className: "badge " + (pendientes ? "badge-warn" : "badge-neg") },
         pendientes ? pendientes + " pendiente" + (pendientes === 1 ? "" : "s") : "Al día"),
     ),
+
+    h("div", { className: "arco-filtros" },
+      h("div", { className: "arco-chips", role: "group", "aria-label": "Filtrar por estado" },
+        FILTROS_ESTADO.map((f) => {
+          const n = f.id ? (porEstado[f.id] || 0) : totalTodas;
+          return h("button", {
+            key: f.id || "todas", type: "button",
+            className: "btn btn-sm " + (estado === f.id ? "btn-primary" : "btn-secondary"),
+            "aria-pressed": estado === f.id,
+            onClick: () => setEstado(f.id),
+          }, f.label + " (" + n + ")");
+        })),
+      h("select", {
+        className: "select arco-tipo", value: tipo, "aria-label": "Filtrar por tipo de solicitud",
+        onChange: (e) => setTipo(e.target.value),
+      },
+        h("option", { value: "" }, "Todos los tipos"),
+        ARCO_TIPOS.map((t) => h("option", { key: t.id, value: t.id },
+          t.label + " (" + (porTipo[t.id] || 0) + ")"))),
+    ),
+
     error && h("div", { className: "alert alert-error", role: "alert", style: { marginBottom: 12 } },
       h(I.alert, { size: 16 }), h("div", null, error)),
     !solicitudes
@@ -249,9 +292,11 @@ function SolicitudesArco() {
           [0, 1].map((i) => h(Skeleton, { key: i, style: { height: 64, borderRadius: 10 } })))
       : solicitudes.length === 0
         ? h(EmptyState, { icon: I.mail, tone: "success", compact: true,
-            title: "Sin solicitudes ARCO",
-            description: "Cuando un usuario ejerza sus derechos de acceso, rectificación, cancelación u oposición, aparecerá aquí." })
-        : solicitudes.map((s) =>
+            title: totalTodas === 0 ? "Sin solicitudes ARCO" : "No hay solicitudes con estos filtros",
+            description: totalTodas === 0
+              ? "Cuando un usuario ejerza sus derechos de acceso, rectificación, cancelación u oposición, aparecerá aquí."
+              : "Cambie el estado o el tipo para ver otras solicitudes." })
+        : h("div", { className: "arco-lista" }, solicitudes.map((s) =>
             h("div", { key: s.id, className: "privacy-arco-item" },
               h("div", { className: "row between" },
                 h("strong", null, ((ARCO_TIPOS.find((t) => t.id === s.tipo) || {}).label || s.tipo) + " · " + s.email),
@@ -272,7 +317,18 @@ function SolicitudesArco() {
                 h("button", { type: "button", className: "btn btn-secondary btn-sm", disabled: guardando === s.id,
                               onClick: () => handleResolver(s, "rechazada") }, "Rechazar"),
               ),
-            )),
+            ))),
+
+    datos && datos.paginas > 1 && h("div", { className: "row between", style: { marginTop: 12 } },
+      h("span", { className: "muted", style: { fontSize: 12.5 } },
+        "Página " + datos.pagina + " de " + datos.paginas + " · " + datos.total + " solicitudes"),
+      h("div", { className: "row", style: { gap: 6 } },
+        h("button", { type: "button", className: "btn btn-secondary btn-sm",
+                      disabled: datos.pagina <= 1, onClick: () => setPagina((p) => p - 1) }, "Anterior"),
+        h("button", { type: "button", className: "btn btn-secondary btn-sm",
+                      disabled: datos.pagina >= datos.paginas, onClick: () => setPagina((p) => p + 1) }, "Siguiente"),
+      ),
+    ),
   );
 }
 

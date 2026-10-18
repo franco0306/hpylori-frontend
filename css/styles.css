@@ -1400,3 +1400,11 @@ img.brand-mark {
 .arco-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .arco-tipo { min-width: 190px; }
 .arco-lista { display: flex; flex-direction: column; gap: 10px; }
+
+.modelo-version-cab { all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+.modelo-version-cab:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 4px; border-radius: 8px; }
+.modelo-veredicto { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; margin-top: 12px; border: 1px solid; font-size: 13px; line-height: 1.45; }
+.modelo-veredicto strong { display: block; color: var(--ink-900); }
+.modelo-veredicto.is-mejor { background: var(--green-50); border-color: var(--green-100); color: var(--green-600); }
+.modelo-veredicto.is-igual { background: var(--ink-50); border-color: var(--ink-200); color: var(--ink-500); }
+.modelo-veredicto.is-peor { background: var(--red-50); border-color: var(--red-100); color: var(--red-600); }

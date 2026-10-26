@@ -248,6 +248,13 @@ function estadoDe(pct) {
   return pct >= 85 ? "critico" : pct >= 70 ? "alerta" : "optimo";
 }
 
+/** Fecha ISO (AAAA-MM-DD) como «17 ene 2036». */
+function fmtDia(iso) {
+  const [a, m, d] = String(iso).split("-").map(Number);
+  if (!a || !m || !d) return String(iso);
+  return d + " " + MESES[m - 1] + " " + a;
+}
+
 const COLOR_ESTADO = { optimo: "var(--green-600)", alerta: "var(--amber-600)", critico: "var(--red-600)" };
 const ORDEN_ESTADO = { optimo: 0, alerta: 1, critico: 2 };
 

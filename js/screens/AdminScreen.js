@@ -412,6 +412,8 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
 
     ),
 
+    h(Respaldos, null),
+
     // Mantenimiento en una sola fila: texto a la izquierda, acción a la
     // derecha. Un botón no necesita una tarjeta con párrafo propio.
     h("div", { className: "card card-pad mantenimiento" },
@@ -439,6 +441,119 @@ function AuditoriaAlmacenamiento({ datos, cargando, error, onReintentar,
       },
         h(purgaResultado.ok ? I.check : I.alert, { size: 14 }),
         h("div", { style: { fontSize: 12.5 } }, purgaResultado.mensaje),
+      ),
+    ),
+  );
+}
+
+
+// ── Módulo: respaldos ────────────────────────────────────────────────────────
+// La base se copia sola cada 24 h; el administrador puede pedir una copia
+// ahora y descargarla para guardarla fuera del proveedor. El archivo va
+// cifrado: descargado, solo lo lee el servidor o el script de restauración.
+function Respaldos() {
+  const [datos, setDatos]       = useState(null);
+  const [error, setError]       = useState(null);
+  const [creando, setCreando]   = useState(false);
+  const [aviso, setAviso]       = useState(null);
+  const [bajando, setBajando]   = useState(null);
+
+  const cargar = useCallback(async () => {
+    setError(null);
+    try { setDatos(await pedirJson("/admin/backups")); }
+    catch (err) { setError(describirFallo(err)); }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const crear = async () => {
+    setCreando(true); setAviso(null);
+    try {
+      const ficha = await enviarJson("/admin/backups", "POST");
+      setAviso({ ok: true, texto: "Respaldo creado (" + fmtBytes(ficha.bytes) + "). Ya está guardado y cifrado." });
+      cargar();
+    } catch (err) {
+      setAviso({ ok: false, texto: err.detalle || describirFallo(err) });
+    } finally {
+      setCreando(false);
+    }
+  };
+
+  const descargar = async (nombre) => {
+    setBajando(nombre);
+    try {
+      const res = await authFetch("/admin/backups/" + encodeURIComponent(nombre));
+      if (!res.ok) throw Object.assign(new Error("HTTP_" + res.status), { estado: res.status });
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = nombre;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setAviso({ ok: false, texto: describirFallo(err) });
+    } finally {
+      setBajando(null);
+    }
+  };
+
+  const items = (datos && datos.items) || [];
+  const ultimo = datos && datos.ultimo;
+  // Más de un día y medio sin copia es un fallo del programador, no un retraso.
+  const atrasado = ultimo && Date.now() - aFecha(ultimo).getTime() > 36 * 3600 * 1000;
+
+  return h("div", { className: "card card-pad", style: { marginTop: 16 } },
+    h("div", { className: "mantenimiento-fila" },
+      h("div", null,
+        h("div", { className: "section-title", style: { marginBottom: 4 } }, "Respaldos de la base de datos"),
+        h("div", { className: "seccion-nota", style: { margin: 0 } },
+          datos
+            ? "Automático cada " + datos.intervalo_horas + " h · se guardan los últimos " + datos.retencion +
+              " · cifrados con " + datos.cifrado + " · " + datos.destino
+            : "Copia automática diaria de cuentas, pacientes, estudios, consentimientos y bitácora."),
+      ),
+      h("button", {
+        className: "btn btn-secondary", onClick: crear,
+        disabled: creando || !datos || !datos.disponible,
+      },
+        creando ? h("span", { className: "spinner-sm" }) : h(I.shield, { size: 14 }),
+        creando ? "Respaldando…" : "Respaldar ahora"),
+    ),
+
+    error && h("div", { className: "alert alert-error", style: { marginTop: 12 }, role: "status" },
+      h(I.alert, { size: 14 }), h("div", { style: { fontSize: 12.5 } }, error)),
+
+    datos && !datos.disponible && h("div", { className: "alert alert-warn", style: { marginTop: 12 }, role: "status" },
+      h(I.alert, { size: 14 }),
+      h("div", { style: { fontSize: 12.5 } }, "No hay un almacén configurado para guardar respaldos.")),
+
+    datos && datos.disponible && h("div", {
+      className: "alert " + (!ultimo || atrasado ? "alert-warn" : "alert-info"), style: { marginTop: 12 }, role: "status",
+    },
+      h(!ultimo || atrasado ? I.alert : I.check, { size: 14 }),
+      h("div", { style: { fontSize: 12.5 } },
+        !ultimo ? "Aún no hay respaldos. El primero automático se hará en minutos, o pulse «Respaldar ahora»."
+          : (atrasado ? "El último respaldo tiene más de un día: " : "Último respaldo: ") + fmtFechaHora(ultimo) +
+            (datos.proximo && !atrasado ? " · próximo automático: " + fmtFechaHora(datos.proximo) : ""))),
+
+    aviso && h("div", { className: "alert " + (aviso.ok ? "alert-info" : "alert-warn"), style: { marginTop: 12 }, role: "status" },
+      h(aviso.ok ? I.check : I.alert, { size: 14 }), h("div", { style: { fontSize: 12.5 } }, aviso.texto)),
+
+    items.length > 0 && h("div", { className: "table-wrap", style: { marginTop: 12 } },
+      h("table", { className: "table tabla-desglose" },
+        h("thead", null, h("tr", null,
+          h("th", null, "Fecha"), h("th", null, "Tipo"), h("th", null, "Tamaño"), h("th", null, ""))),
+        h("tbody", null, items.map((r) => h("tr", { key: r.nombre },
+          h("td", { className: "mono" }, fmtFechaHora(r.creado)),
+          h("td", null, r.tipo === "auto" ? "Automático" : "Manual"),
+          h("td", { className: "mono" }, fmtBytes(r.bytes)),
+          h("td", { style: { textAlign: "right" } },
+            h("button", {
+              className: "btn btn-secondary", style: { padding: "5px 10px" },
+              onClick: () => descargar(r.nombre), disabled: bajando === r.nombre,
+              "aria-label": "Descargar el respaldo del " + fmtFechaHora(r.creado),
+            }, bajando === r.nombre ? h("span", { className: "spinner-sm" }) : h(I.dl, { size: 13 }), "Descargar")),
+        ))),
       ),
     ),
   );
@@ -1373,7 +1488,7 @@ export function AdminScreen({ section = "panel", user }) {
 
   const titulos = {
     panel:     ["Panel de administración", "Estado operativo del sistema y de las cuentas"],
-    auditoria: ["Auditoría y cuotas", "Consumo de almacenamiento y mantenimiento de la base"],
+    auditoria: ["Auditoría y cuotas", "Consumo de almacenamiento, respaldos y mantenimiento de la base"],
   };
   const [titulo, subtitulo] = titulos[section] || titulos.panel;
 

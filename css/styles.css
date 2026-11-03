@@ -893,6 +893,15 @@ button { font-family: inherit; cursor: pointer; }
 .mfa-secreto code { display: inline-block; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .08em; color: #1f2937; word-break: break-all; }
 .mfa-input { font-family: "IBM Plex Mono", monospace; font-size: 18px; letter-spacing: .3em; }
 
+/* Códigos de recuperación y recuperación de la cuenta */
+.codigos-recuperacion { display: flex; flex-direction: column; gap: 12px; }
+.codigos-lista { margin: 0; padding: 12px 14px 12px 34px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px;
+  border: 1px solid var(--ink-200); border-radius: 10px; background: var(--ink-50); font-size: 12px; color: var(--ink-500); }
+.codigos-lista code { font-family: "IBM Plex Mono", monospace; font-size: 13.5px; letter-spacing: .06em; color: var(--ink-900); }
+.olvido-enlace { display: flex; justify-content: flex-end; margin-top: 6px; font-size: 12.5px; }
+.seguridad-form { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; max-width: 440px; }
+.seguridad-sep { border-top: 1px solid var(--ink-200); margin: 18px 0 0; padding-top: 16px; }
+
 /* ══════════════════════════════════════════════════════════════════════════
    Rediseño v2 (Aceternity UI)
    Capa que se apoya en los mismos tokens: todo lo de abajo sigue funcionando

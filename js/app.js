@@ -21,6 +21,7 @@ import { BitacoraScreen }      from "./screens/BitacoraScreen.js";
 import { ModeloScreen }        from "./screens/ModeloScreen.js";
 import { LoginScreen }         from "./components/LoginScreen.js";
 import { RegisterScreen }      from "./components/RegisterScreen.js";
+import { RestablecerScreen }   from "./components/RestablecerScreen.js";
 import { CONFIG }              from "./config.js";
 import { getInitialTheme, applyTheme, THEMES } from "./theme.js";
 import { getStoredPalette, storePalette } from "./xai.js";
@@ -38,11 +39,24 @@ const h = React.createElement;
 const CLINICAL_MODEL = findModel(CLINICAL_MODEL_ID);
 
 
+// Enlace del correo de recuperación: #restablecer=<token>.
+function tokenDeEnlace() {
+  const m = /[#&]restablecer=([A-Za-z0-9_-]+)/.exec(window.location.hash || "");
+  return m ? m[1] : null;
+}
+
+function limpiarEnlace() {
+  try { window.history.replaceState(null, "", window.location.pathname + window.location.search); }
+  catch { window.location.hash = ""; }
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [authed, setAuthed]     = useState(() => isAuthenticated());
   const [authView, setAuthView] = useState("login"); // "login" | "register"
   const [user, setUser]         = useState(() => getUser());
+  const [tokenReset, setTokenReset] = useState(tokenDeEnlace);
+  const [avisoLogin, setAvisoLogin] = useState(null);
 
   const [theme, setTheme]                 = useState(getInitialTheme);
   const [xaiPalette, setXaiPalette]       = useState(getStoredPalette);
@@ -78,6 +92,14 @@ function App() {
 
   // Accesibilidad (WCAG 2.1): aplica y persiste el tema en cada cambio.
   useEffect(() => { applyTheme(theme); }, [theme]);
+
+  // El enlace del correo puede abrirse con la aplicación ya cargada en la
+  // pestaña: cambiar solo el fragmento no recarga la página.
+  useEffect(() => {
+    const alCambiar = () => { const t = tokenDeEnlace(); if (t) setTokenReset(t); };
+    window.addEventListener("hashchange", alCambiar);
+    return () => window.removeEventListener("hashchange", alCambiar);
+  }, []);
 
   // Acuerdo de datos: obligatorio en el primer inicio de sesión de cada cuenta.
   // Manda el backend, que es donde queda la aceptación con versión y fecha. La
@@ -156,11 +178,32 @@ function App() {
     setAuthView("login");
   };
 
+  // El enlace de recuperación manda aunque hubiera una sesión abierta en este
+  // navegador: restablecer cierra todas las sesiones de la cuenta.
+  if (tokenReset) {
+    const salir = (aviso) => {
+      limpiarEnlace();
+      setTokenReset(null);
+      if (authed) handleLogout();
+      setAuthView("login");
+      setAvisoLogin(aviso);
+    };
+    return h(React.Fragment, null,
+      h(RestablecerScreen, {
+        token: tokenReset,
+        onListo: () => salir("Contraseña actualizada. Ya puede iniciar sesión con la nueva."),
+        onCancelar: () => salir(null),
+      }),
+      h(Toaster, null),
+    );
+  }
+
   if (!authed) {
     return h(React.Fragment, null,
       authView === "register"
         ? h(RegisterScreen, { onSuccess: handleAuthSuccess, onGoToLogin: () => setAuthView("login") })
-        : h(LoginScreen,    { onSuccess: handleAuthSuccess, onGoToRegister: () => setAuthView("register") }),
+        : h(LoginScreen,    { onSuccess: handleAuthSuccess, onGoToRegister: () => setAuthView("register"),
+                              aviso: avisoLogin }),
       h(Toaster, null),
     );
   }
@@ -190,6 +233,7 @@ function App() {
         theme, onToggleTheme: toggleTheme,
         xaiPalette, onChangePalette: handleChangePalette,
         consents, onConsentsChange: setConsents,
+        user, onUserChange: setUser,
       });
       case "manual":    return h(HelpScreen,     {});
 

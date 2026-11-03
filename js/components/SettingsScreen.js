@@ -2,6 +2,7 @@ import { I } from "../icons.js";
 import { THEMES } from "../theme.js";
 import { PALETTES } from "../xai.js";
 import { PrivacyPanel } from "./PrivacyPanel.js";
+import { SeguridadCuenta } from "./SeguridadCuenta.js";
 import { toast } from "../ui/toast.jsx";
 
 const h = window.React.createElement;
@@ -12,7 +13,7 @@ const h = window.React.createElement;
 // Cada cambio se aplica al instante: no hay botón "Guardar".
 
 export function SettingsScreen({ theme, onToggleTheme, xaiPalette, onChangePalette,
-                                 consents = null, onConsentsChange }) {
+                                 consents = null, onConsentsChange, user = null, onUserChange }) {
   const dark = theme === THEMES.DARK;
 
   const handleTema = () => {
@@ -30,7 +31,7 @@ export function SettingsScreen({ theme, onToggleTheme, xaiPalette, onChangePalet
     h("div", { className: "page-header" },
       h("div", null,
         h("h1", { className: "page-title" }, "Configuración"),
-        h("div", { className: "page-sub" }, "Preferencias de la interfaz · se aplican al instante"),
+        h("div", { className: "page-sub" }, "Preferencias, seguridad de su cuenta y sus datos"),
       ),
     ),
 
@@ -86,6 +87,11 @@ export function SettingsScreen({ theme, onToggleTheme, xaiPalette, onChangePalet
           }),
         ),
       ),
+    ),
+
+    // ── Seguridad de la cuenta ──────────────────────────────────────────────
+    h("div", { style: { marginTop: 20 } },
+      h(SeguridadCuenta, { user, onUserChange }),
     ),
 
     // ── Mis datos y privacidad ───────────────────────────────────────────────

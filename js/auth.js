@@ -98,11 +98,50 @@ export function mfaSetup(mfaToken) {
   return authRequest("/auth/mfa/setup", { mfa_token: mfaToken });
 }
 
-/** Confirma el código de 6 dígitos y abre la sesión. */
+/**
+ * Confirma el código de 6 dígitos (o un código de recuperación) y abre la
+ * sesión. Al activar el segundo factor trae además `recoveryCodes`, que el
+ * servidor entrega una sola vez.
+ */
 export async function mfaVerify(mfaToken, code) {
   const data = await authRequest("/auth/mfa/verify", { mfa_token: mfaToken, code });
   setSession(data);
-  return data.user;
+  return { user: data.user, recoveryCodes: data.recovery_codes || null };
+}
+
+/** Pide el enlace de restablecimiento. La respuesta no dice si la cuenta existe. */
+export async function forgotPassword(email) {
+  const data = await authRequest("/auth/password/forgot", { email });
+  return data.detail;
+}
+
+/** Fija la nueva contraseña con el token del enlace recibido por correo. */
+export function resetPassword(token, newPassword) {
+  return authRequest("/auth/password/reset", { token, new_password: newPassword });
+}
+
+async function enviarConSesion(path, body) {
+  const res = await authFetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errorMessage(data));
+  return data;
+}
+
+/** El propio usuario cambia su contraseña; sus otros dispositivos se cierran. */
+export function changePassword(currentPassword, newPassword) {
+  return enviarConSesion("/auth/password", {
+    current_password: currentPassword, new_password: newPassword,
+  });
+}
+
+/** Diez códigos de recuperación nuevos; los anteriores dejan de servir. */
+export async function regenerateRecoveryCodes(password) {
+  const data = await enviarConSesion("/auth/mfa/recovery-codes", { password });
+  return data.recovery_codes;
 }
 
 // Un único refresco en vuelo: si varias peticiones caducan a la vez, todas

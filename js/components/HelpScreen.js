@@ -12,7 +12,17 @@ const GUIA = [
     pasos: [
       "Escriba su correo y su contraseña. El ojo del campo le deja ver lo que escribió.",
       "Si su cuenta es de administrador, escriba además el código de 6 dígitos de su app Google Authenticator.",
+      "La primera vez que active ese código, el sistema le muestra 10 códigos de recuperación: cópielos o descárguelos y guárdelos fuera de la computadora.",
       "La primera vez, lea y acepte los términos de uso.",
+    ],
+  },
+  {
+    id: "clave", icono: "lock", titulo: "Cambiar o recuperar su contraseña",
+    pasos: [
+      "Para cambiarla: vaya a «Configuración», sección «Seguridad de la cuenta», escriba su contraseña actual y la nueva dos veces, y pulse «Cambiar contraseña». Sus otros dispositivos tendrán que volver a entrar.",
+      "Si la olvidó: en la pantalla de ingreso pulse «¿Olvidó su contraseña?», escriba su correo y abra el enlace que le llegará (vence en 30 minutos y sirve una sola vez).",
+      "Elija la contraseña nueva: al menos 8 caracteres, con letras y números. Se cerrará la sesión en todos sus dispositivos.",
+      "Si es administrador y perdió su teléfono: en el paso del código pulse «¿Perdió su teléfono? Use un código de recuperación» y escriba uno de sus 10 códigos. Cada uno sirve una vez; genere otros en «Configuración» cuando le queden pocos.",
     ],
   },
   {
@@ -70,7 +80,17 @@ const GUIA = [
     pasos: [
       "En «Configuración» puede activar el modo oscuro, cómodo en salas con poca luz.",
       "También puede elegir los colores del mapa de calor, incluida una opción apta para daltonismo.",
+      "En «Seguridad de la cuenta» puede cambiar su contraseña y, si es administrador, renovar sus códigos de recuperación.",
       "En «Mis datos y privacidad» puede descargar sus datos o pedir que se corrijan o borren.",
+    ],
+  },
+  {
+    id: "respaldos", icono: "shield", titulo: "Respaldos (administrador)",
+    pasos: [
+      "El sistema copia la base de datos solo, cada 24 horas, y guarda las últimas 14 copias cifradas.",
+      "En «Auditoría y Cuotas», sección «Respaldos de la base de datos», verá la fecha del último respaldo y del próximo.",
+      "Pulse «Respaldar ahora» antes de un cambio importante, y «Descargar» para guardar una copia fuera del sistema.",
+      "La copia descargada va cifrada: solo el servidor puede leerla. La restauración la hace el equipo técnico sobre una base nueva.",
     ],
   },
 ];
@@ -98,11 +118,11 @@ const PREGUNTAS = [
   },
   {
     q: "Olvidé mi contraseña.",
-    a: "Pida al administrador del sistema que la restablezca desde el Panel Admin.",
+    a: "Pulse «¿Olvidó su contraseña?» en la pantalla de ingreso y siga el enlace que le llega al correo. No necesita al administrador.",
   },
   {
     q: "Mi cuenta dice «bloqueada durante 15 minutos».",
-    a: "Ocurre tras 5 intentos fallidos, para proteger su cuenta. Espere 15 minutos y vuelva a intentarlo con calma; use el ojo del campo para comprobar la contraseña.",
+    a: "Ocurre tras 5 intentos fallidos, para proteger su cuenta. Puede esperar 15 minutos o, si no recuerda la contraseña, restablecerla con «¿Olvidó su contraseña?»: al cambiarla, el bloqueo se levanta al instante. Las cuentas de administrador nunca se bloquean: solo deben esperar 30 segundos entre intentos.",
   },
   {
     q: "¿Dónde veo las imágenes de un análisis anterior?",

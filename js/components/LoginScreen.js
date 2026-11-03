@@ -80,7 +80,7 @@ function PasoCodigo({ alta, datosAlta, cargandoAlta, codigo, onCodigo, error, lo
     h(GradientButton, { type: "submit", loading, disabled: alta && !datosAlta },
       loading ? "Verificando…" : alta ? "Activar y entrar" : "Verificar",
       !loading && h(I.chev, { size: 14 })),
-    h("div", { className: "text-center text-[13px]", style: { display: "flex", flexDirection: "column", gap: 8 } },
+    h("div", { className: "text-center text-[13px]", style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
       !alta && h("span", { className: "linklike", onClick: alternar },
         recuperacion ? "Usar el código de la app" : "¿Perdió su teléfono? Use un código de recuperación"),
       h("span", { className: "linklike", onClick: onVolver }, "Volver al inicio de sesión")),
@@ -218,7 +218,7 @@ export function LoginScreen({ onSuccess, onGoToRegister, aviso = null }) {
     codigos: "Si pierde su teléfono, cada uno le deja entrar una vez en lugar del código de la app.",
     mfa: mfa && mfa.setup
       ? "Las cuentas de administración exigen un segundo factor. Configúrelo una sola vez."
-      : "Ingrese el código de 6 dígitos de su app autenticadora.",
+      : "Ingrese el código de 6 dígitos de su app autenticadora o, si perdió su teléfono, un código de recuperación.",
   }[paso];
 
   const cuerpo = () => {

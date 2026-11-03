@@ -69,6 +69,11 @@ async function authRequest(path, body) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
+  // Un 5xx sin `detail` es el servidor caído o despertando, no un error de la
+  // cuenta: decir «error de autenticación» hace dudar de la contraseña.
+  if (!res.ok && res.status >= 500 && !(data && data.detail)) {
+    throw new Error("El servidor no está disponible en este momento. Intente de nuevo en unos minutos.");
+  }
   if (!res.ok) throw new Error(errorMessage(data));
   return data;
 }

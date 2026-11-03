@@ -3,7 +3,7 @@
 // renovar sus códigos de recuperación.
 
 import { I } from "../icons.js";
-import { changePassword, regenerateRecoveryCodes } from "../auth.js";
+import { changePassword, regenerateRecoveryCodes, resetOwnMfa } from "../auth.js";
 import { Input, Label, FieldError } from "../ui/input.jsx";
 import { validarClaveNueva } from "../validacion.js";
 import { toast } from "../ui/toast.jsx";
@@ -121,7 +121,54 @@ function CodigosDeRespaldo({ user, onUserChange }) {
   );
 }
 
-export function SeguridadCuenta({ user, onUserChange }) {
+// Teléfono nuevo: retira el segundo factor y obliga a volver a entrar, donde
+// el sistema muestra un QR nuevo. Antes había que pedírselo a otro administrador.
+function OtroTelefono({ onLogout }) {
+  const [abierto, setAbierto]   = useState(false);
+  const [clave, setClave]       = useState("");
+  const [error, setError]       = useState(null);
+  const [cargando, setCargando] = useState(false);
+
+  const confirmar = async (e) => {
+    e.preventDefault();
+    if (!clave) { setError("Ingrese su contraseña para continuar."); return; }
+    setCargando(true); setError(null);
+    try {
+      await resetOwnMfa(clave);
+      toast.success("Verificación en dos pasos retirada", "Ingrese de nuevo y escanee el código QR con su nuevo teléfono.");
+      if (onLogout) onLogout();
+    } catch (err) {
+      setError(err.message || "No se pudo retirar la verificación.");
+      setCargando(false);
+    }
+  };
+
+  return h("div", { className: "seguridad-sep" },
+    h("div", { className: "ajuste-titulo" }, "¿Cambió de teléfono?"),
+    h("div", { className: "ajuste-desc" },
+      "Retire la verificación actual y, al volver a ingresar, escanee un código QR nuevo con su otro teléfono."),
+    !abierto && h("button", { type: "button", className: "btn btn-secondary", style: { marginTop: 12 },
+      onClick: () => setAbierto(true) }, h(I.shield, { size: 14 }), "Configurar en otro teléfono"),
+    abierto && h("form", { className: "seguridad-form", onSubmit: confirmar, noValidate: true },
+      h("div", { className: "ajuste-nota", style: { marginTop: 0 } },
+        "Se cerrará la sesión en todos sus dispositivos. Confirme con su contraseña."),
+      h("div", null,
+        h(Label, { htmlFor: "seg-mfa-clave" }, "Contraseña"),
+        h(Input, { id: "seg-mfa-clave", type: "password", icon: I.lock, autoComplete: "current-password",
+          value: clave, error, onChange: (e) => { setClave(e.target.value); setError(null); } }),
+        h(FieldError, { id: "seg-mfa-clave" }, error),
+      ),
+      h("div", { className: "row", style: { gap: 8 } },
+        h("button", { type: "submit", className: "btn btn-primary", disabled: cargando },
+          cargando ? h("span", { className: "spinner-sm" }) : h(I.shield, { size: 14 }),
+          cargando ? "Retirando…" : "Retirar y volver a ingresar"),
+        h("button", { type: "button", className: "btn btn-secondary", onClick: () => { setAbierto(false); setError(null); } },
+          "Cancelar")),
+    ),
+  );
+}
+
+export function SeguridadCuenta({ user, onUserChange, onLogout }) {
   return h("div", { className: "card card-pad" },
     h("div", { className: "section-title" }, "Seguridad de la cuenta"),
     h("div", { className: "row", style: { gap: 12 } },
@@ -134,6 +181,7 @@ export function SeguridadCuenta({ user, onUserChange }) {
     ),
     h(CambiarClave, null),
     user && user.mfa_enabled && h(CodigosDeRespaldo, { user, onUserChange }),
+    user && user.mfa_enabled && h(OtroTelefono, { onLogout }),
     h("div", { className: "ajuste-nota" },
       "¿Olvidó su contraseña? Cierre sesión y use «¿Olvidó su contraseña?» en la pantalla de ingreso: ",
       "le llegará un enlace a su correo."),

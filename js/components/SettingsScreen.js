@@ -13,7 +13,7 @@ const h = window.React.createElement;
 // Cada cambio se aplica al instante: no hay botón "Guardar".
 
 export function SettingsScreen({ theme, onToggleTheme, xaiPalette, onChangePalette,
-                                 consents = null, onConsentsChange, user = null, onUserChange }) {
+                                 consents = null, onConsentsChange, user = null, onUserChange, onLogout }) {
   const dark = theme === THEMES.DARK;
 
   const handleTema = () => {
@@ -91,7 +91,7 @@ export function SettingsScreen({ theme, onToggleTheme, xaiPalette, onChangePalet
 
     // ── Seguridad de la cuenta ──────────────────────────────────────────────
     h("div", { style: { marginTop: 20 } },
-      h(SeguridadCuenta, { user, onUserChange }),
+      h(SeguridadCuenta, { user, onUserChange, onLogout }),
     ),
 
     // ── Mis datos y privacidad ───────────────────────────────────────────────

@@ -138,6 +138,11 @@ export function changePassword(currentPassword, newPassword) {
   });
 }
 
+/** Retira el segundo factor para darlo de alta en otro teléfono; cierra todas las sesiones. */
+export function resetOwnMfa(password) {
+  return enviarConSesion("/auth/mfa/reset", { password });
+}
+
 /** Diez códigos de recuperación nuevos; los anteriores dejan de servir. */
 export async function regenerateRecoveryCodes(password) {
   const data = await enviarConSesion("/auth/mfa/recovery-codes", { password });

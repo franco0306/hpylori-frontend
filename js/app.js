@@ -233,7 +233,7 @@ function App() {
         theme, onToggleTheme: toggleTheme,
         xaiPalette, onChangePalette: handleChangePalette,
         consents, onConsentsChange: setConsents,
-        user, onUserChange: setUser,
+        user, onUserChange: setUser, onLogout: handleLogout,
       });
       case "manual":    return h(HelpScreen,     {});
 

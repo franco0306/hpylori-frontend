@@ -23,6 +23,7 @@ const GUIA = [
       "Si la olvidó: en la pantalla de ingreso pulse «¿Olvidó su contraseña?», escriba su correo y abra el enlace que le llegará (vence en 30 minutos y sirve una sola vez).",
       "Elija la contraseña nueva: al menos 8 caracteres, con letras y números. Se cerrará la sesión en todos sus dispositivos.",
       "Si es administrador y perdió su teléfono: en el paso del código pulse «¿Perdió su teléfono? Use un código de recuperación» y escriba uno de sus 10 códigos. Cada uno sirve una vez; genere otros en «Configuración» cuando le queden pocos.",
+      "Si cambió de teléfono: en «Configuración», sección «Seguridad de la cuenta», pulse «Configurar en otro teléfono», confirme con su contraseña y, al volver a ingresar, escanee el código QR nuevo.",
     ],
   },
   {
